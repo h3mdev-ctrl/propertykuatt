@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Station Radius — Sydney Property Finder</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0d0f0e;--sf:#141716;--sf2:#1c201e;--bd:#252a27;--ac:#b8f5a0;--ac2:#5dde3a;--tx:#e8ede9;--mu:#6b7d6e;--wn:#f0c060;--er:#f07060;--r:6px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--tx);font-family:'DM Mono',monospace;font-size:13px;min-height:100vh}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(184,245,160,.02) 1px,transparent 1px),linear-gradient(90deg,rgba(184,245,160,.02) 1px,transparent 1px);background-size:32px 32px;pointer-events:none;z-index:0}
+.app{position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:0 20px 60px}
+header{padding:40px 0 28px;border-bottom:1px solid var(--bd);margin-bottom:26px}
+.ey{font-size:10px;letter-spacing:.2em;color:var(--ac);text-transform:uppercase;margin-bottom:8px}
+h1{font-family:'DM Serif Display',serif;font-size:clamp(26px,5vw,46px);font-weight:400;line-height:1.05;letter-spacing:-.02em}
+h1 em{font-style:italic;color:var(--ac)}
+.sub{margin-top:8px;color:var(--mu);font-size:11px}
+.step{background:var(--sf);border:1px solid var(--bd);border-radius:var(--r);padding:18px 22px;margin-bottom:12px}
+.sh{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.sn{width:22px;height:22px;border-radius:50%;background:var(--ac);color:var(--bg);font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.st{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--mu)}
+.st strong{color:var(--tx)}
+.ir{display:flex;gap:8px;align-items:center}
+input[type=password],select{background:var(--bg);border:1px solid var(--bd);border-radius:var(--r);color:var(--tx);font-family:'DM Mono',monospace;font-size:12px;padding:8px 12px;outline:none;transition:border-color .2s;width:100%}
+input:focus,select:focus{border-color:var(--ac)}
+.badge{font-size:10px;padding:3px 9px;border-radius:20px;white-space:nowrap;flex-shrink:0}
+.bok{background:rgba(184,245,160,.1);color:var(--ac);border:1px solid rgba(184,245,160,.2)}
+.bwn{background:rgba(240,192,96,.1);color:var(--wn);border:1px solid rgba(240,192,96,.2)}
+.hlp{font-size:11px;color:var(--mu);margin-top:8px;line-height:1.6}
+.hlp a{color:var(--ac);text-decoration:none}
+.hlp a:hover{text-decoration:underline}
+.filters{display:grid;grid-template-columns:repeat(auto-fill,minmax(165px,1fr));gap:10px}
+.fg label{display:block;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--mu);margin-bottom:5px}
+.br{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:4px}
+.btn{background:var(--ac);color:var(--bg);border:none;border-radius:var(--r);font-family:'DM Mono',monospace;font-size:12px;font-weight:500;letter-spacing:.08em;padding:10px 22px;cursor:pointer;transition:all .15s;white-space:nowrap}
+.btn:hover{background:#c8ffc0;transform:translateY(-1px)}
+.btn:disabled{opacity:.35;cursor:not-allowed;transform:none}
+.bg{background:transparent;color:var(--wn);border:1px solid rgba(240,192,96,.3)}
+.bg:hover{background:rgba(240,192,96,.07)}
+.up{background:var(--bg);border:1px solid var(--bd);border-radius:var(--r);padding:8px 12px;font-size:10px;color:var(--mu);word-break:break-all;margin-top:10px;line-height:1.5}
+.up span{color:var(--ac)}
+.sb{display:flex;align-items:center;gap:10px;margin:14px 0;font-size:11px;color:var(--mu);min-height:18px}
+.sp{display:inline-block;width:13px;height:13px;border:2px solid var(--bd);border-top-color:var(--ac);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.psw{display:flex;gap:0;margin:12px 0}
+.ps{flex:1;font-size:10px;padding:7px 6px;text-align:center;border:1px solid var(--bd);color:var(--mu);transition:all .2s}
+.ps:first-child{border-radius:var(--r) 0 0 var(--r)}
+.ps:last-child{border-radius:0 var(--r) var(--r) 0}
+.ps+.ps{border-left:none}
+.ps.active{background:rgba(184,245,160,.08);color:var(--ac);border-color:rgba(184,245,160,.25)}
+.ps.done{background:rgba(184,245,160,.04);color:var(--ac2);border-color:rgba(93,222,58,.15)}
+.rh{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px;border-bottom:1px solid var(--bd);padding-bottom:10px}
+.rc{font-family:'DM Serif Display',serif;font-size:20px;font-style:italic;color:var(--ac)}
+.sr{display:flex;gap:10px;font-size:11px}
+.sb2{background:none;border:none;color:var(--mu);font-family:'DM Mono',monospace;font-size:11px;cursor:pointer;padding:0}
+.sb2.on,.sb2:hover{color:var(--ac)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(315px,1fr));gap:14px}
+.card{background:var(--sf);border:1px solid var(--bd);border-radius:var(--r);overflow:hidden;transition:border-color .2s,transform .2s;cursor:pointer;position:relative}
+.card:hover{border-color:rgba(184,245,160,.3);transform:translateY(-2px)}
+.ci{width:100%;height:170px;background:var(--sf2);display:flex;align-items:center;justify-content:center;color:var(--mu);font-size:10px;overflow:hidden}
+.ci img{width:100%;height:100%;object-fit:cover}
+.cb{padding:14px 16px}
+.spl{display:inline-flex;align-items:center;gap:5px;background:rgba(184,245,160,.07);border:1px solid rgba(184,245,160,.14);border-radius:20px;padding:3px 9px;font-size:10px;color:var(--ac);margin-bottom:9px}
+.sd{width:5px;height:5px;border-radius:50%;background:var(--ac);flex-shrink:0}
+.cp{font-family:'DM Serif Display',serif;font-size:22px;letter-spacing:-.02em;margin-bottom:3px}
+.ca{color:var(--mu);font-size:11px;margin-bottom:11px;line-height:1.45}
+.cs{display:flex;gap:14px;font-size:11px;color:var(--mu);border-top:1px solid var(--bd);padding-top:10px}
+.cl{display:block;margin-top:10px;text-align:center;background:var(--sf2);border:1px solid var(--bd);border-radius:var(--r);padding:6px;color:var(--ac);text-decoration:none;font-size:11px;letter-spacing:.07em}
+.cl:hover{background:rgba(184,245,160,.06)}
+.db{position:absolute;top:9px;right:9px;background:rgba(240,192,96,.85);color:#1a1200;font-size:9px;letter-spacing:.1em;padding:2px 7px;border-radius:3px;font-weight:500}
+.notice{background:rgba(240,192,96,.05);border:1px solid rgba(240,192,96,.18);border-radius:var(--r);padding:11px 15px;color:var(--wn);font-size:11px;line-height:1.6;margin-bottom:12px}
+.empty{text-align:center;padding:70px 20px;color:var(--mu)}
+.ei{font-size:38px;margin-bottom:14px;opacity:.5}
+.empty h3{font-family:'DM Serif Display',serif;font-size:18px;font-style:italic;color:var(--tx);margin-bottom:6px}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+  <div class="ey">Sydney · NSW · Australia</div>
+  <h1>Station <em>Radius</em><br>Property Finder</h1>
+  <p class="sub">Apify + Domain.com.au · Filters listings by walking distance to any Sydney train or metro station</p>
+</header>
+
+<div class="step">
+  <div class="sh"><div class="sn">1</div><div class="st"><strong>Apify API Token</strong></div></div>
+  <div class="ir">
+    <input type="password" id="tok" placeholder="apify_api_xxxxxxxxxxxxxxxxxxxx" oninput="chkTok()"/>
+    <span class="badge bwn" id="tokB">NOT SET</span>
+  </div>
+  <p class="hlp">
+    Free account at <a href="https://apify.com" target="_blank">apify.com</a> &rarr; Console &rarr; Settings &rarr; Integrations &rarr; copy <strong>Personal API token</strong><br>
+    Free tier = $5 credit/month (~200+ searches). No credit card needed.
+  </p>
+</div>
+
+<div class="step">
+  <div class="sh"><div class="sn">2</div><div class="st"><strong>Search Filters</strong></div></div>
+  <div class="filters">
+    <div class="fg"><label>Type</label>
+      <select id="ptype" onchange="upd()">
+        <option value="house">House</option><option value="apartment">Apartment</option>
+        <option value="townhouse">Townhouse</option><option value="duplex">Duplex</option>
+      </select>
+    </div>
+    <div class="fg"><label>Region</label>
+      <select id="region" onchange="upd()">
+        <option value="north-shore-nsw">North Shore</option>
+        <option value="upper-north-shore-nsw">Upper North Shore</option>
+        <option value="northern-beaches-nsw">Northern Beaches</option>
+        <option value="eastern-suburbs-nsw">Eastern Suburbs</option>
+        <option value="inner-west-nsw">Inner West</option>
+        <option value="hills-district-nsw">Hills District</option>
+        <option value="parramatta-nsw">Parramatta</option>
+        <option value="sutherland-shire-nsw">Sutherland Shire</option>
+        <option value="sydney-nsw">All Sydney</option>
+      </select>
+    </div>
+    <div class="fg"><label>Min Price</label>
+      <select id="minp" onchange="upd()">
+        <option value="500000">$500k</option><option value="800000">$800k</option>
+        <option value="1000000" selected>$1M</option><option value="1500000">$1.5M</option>
+      </select>
+    </div>
+    <div class="fg"><label>Max Price</label>
+      <select id="maxp" onchange="upd()">
+        <option value="1500000">$1.5M</option><option value="2000000">$2M</option>
+        <option value="2500000">$2.5M</option><option value="3000000" selected>$3M</option>
+        <option value="4000000">$4M</option><option value="5000000">$5M</option>
+      </select>
+    </div>
+    <div class="fg"><label>Min Beds</label>
+      <select id="beds">
+        <option value="1">1+</option><option value="2">2+</option>
+        <option value="3" selected>3+</option><option value="4">4+</option><option value="5">5+</option>
+      </select>
+    </div>
+    <div class="fg"><label>Station Radius</label>
+      <select id="rad">
+        <option value="500">500m</option><option value="750">750m</option>
+        <option value="1000" selected>1 km</option><option value="1500">1.5 km</option><option value="2000">2 km</option>
+      </select>
+    </div>
+    <div class="fg"><label>Station Line</label>
+      <select id="line">
+        <option value="all">All Lines</option><option value="north_shore">North Shore</option>
+        <option value="northern">Northern</option><option value="nwm">NW Metro</option>
+        <option value="t4">T4 Eastern</option><option value="t1">T1 Western</option>
+        <option value="metro_sw">Metro SW</option>
+      </select>
+    </div>
+    <div class="fg"><label>Max Results</label>
+      <select id="pages">
+        <option value="3">~60 results</option>
+        <option value="5" selected>~100 results</option>
+        <option value="10">~200 results</option>
+      </select>
+    </div>
+  </div>
+  <div class="up" id="uprev">Domain URL: <span>building...</span></div>
+</div>
+
+<div class="step">
+  <div class="sh"><div class="sn">3</div><div class="st"><strong>Run Search</strong></div></div>
+  <div class="br">
+    <button class="btn" id="goBtn" onclick="go()" disabled>Search (add token first)</button>
+    <button class="btn bg" onclick="demo()">Load Demo Data</button>
+  </div>
+  <p class="hlp" style="margin-top:10px">Apify scrapes Domain.com.au (15-45 sec), then we filter by station proximity.</p>
+</div>
+
+<div class="psw" id="psw" style="display:none">
+  <div class="ps" id="p1">1 URL</div>
+  <div class="ps" id="p2">2 Apify</div>
+  <div class="ps" id="p3">3 Scraping</div>
+  <div class="ps" id="p4">4 Filter</div>
+  <div class="ps" id="p5">5 Done</div>
+</div>
+<div class="sb" id="statBar"></div>
+
+<div id="rWrap" style="display:none">
+  <div class="rh">
+    <div class="rc" id="rCount">0 properties</div>
+    <div class="sr">Sort:
+      <button class="sb2 on" id="s-price" onclick="srt('price')">Price</button>
+      <button class="sb2" id="s-dist" onclick="srt('dist')">Distance</button>
+      <button class="sb2" id="s-beds" onclick="srt('beds')">Beds</button>
+    </div>
+  </div>
+  <div class="grid" id="grid"></div>
+</div>
+
+<div class="empty" id="emp">
+  <div class="ei">&#x1F689;</div>
+  <h3>Ready to search</h3>
+  <p>Enter your Apify token and hit Search, or try Demo Data.</p>
+</div>
+</div>
+
+<script>
+const ST=[
+  {n:"Milsons Point",l:"north_shore",a:-33.8469,g:151.2107},
+  {n:"North Sydney",l:"north_shore",a:-33.8393,g:151.2071},
+  {n:"Waverton",l:"north_shore",a:-33.8323,g:151.2031},
+  {n:"Wollstonecraft",l:"north_shore",a:-33.8282,g:151.2009},
+  {n:"St Leonards",l:"north_shore",a:-33.8233,g:151.1953},
+  {n:"Artarmon",l:"north_shore",a:-33.8148,g:151.1886},
+  {n:"Chatswood",l:"north_shore",a:-33.7974,g:151.1847},
+  {n:"Roseville",l:"north_shore",a:-33.7851,g:151.1798},
+  {n:"Lindfield",l:"north_shore",a:-33.7748,g:151.1696},
+  {n:"Killara",l:"north_shore",a:-33.7686,g:151.1628},
+  {n:"Gordon",l:"north_shore",a:-33.7575,g:151.1549},
+  {n:"Pymble",l:"north_shore",a:-33.7475,g:151.1441},
+  {n:"Turramurra",l:"north_shore",a:-33.7354,g:151.1314},
+  {n:"Warrawee",l:"north_shore",a:-33.7266,g:151.1239},
+  {n:"Wahroonga",l:"north_shore",a:-33.7186,g:151.1184},
+  {n:"Waitara",l:"northern",a:-33.7074,g:151.1026},
+  {n:"Hornsby",l:"northern",a:-33.7027,g:151.0997},
+  {n:"Asquith",l:"northern",a:-33.6894,g:151.0952},
+  {n:"Mount Colah",l:"northern",a:-33.6767,g:151.1084},
+  {n:"Mount Kuring-gai",l:"northern",a:-33.6616,g:151.1216},
+  {n:"Berowra",l:"northern",a:-33.6243,g:151.1528},
+  {n:"Cherrybrook",l:"nwm",a:-33.7303,g:151.0568},
+  {n:"Castle Hill",l:"nwm",a:-33.7313,g:150.9959},
+  {n:"Hills Showground",l:"nwm",a:-33.7226,g:150.9806},
+  {n:"Norwest",l:"nwm",a:-33.7207,g:150.965},
+  {n:"Bella Vista",l:"nwm",a:-33.732,g:150.9456},
+  {n:"Kellyville",l:"nwm",a:-33.7154,g:150.9297},
+  {n:"Rouse Hill",l:"nwm",a:-33.6962,g:150.9139},
+  {n:"Tallawong",l:"nwm",a:-33.6868,g:150.9025},
+  {n:"Central",l:"t1",a:-33.8831,g:151.2059},
+  {n:"Town Hall",l:"t1",a:-33.8736,g:151.2069},
+  {n:"Wynyard",l:"t1",a:-33.8675,g:151.2068},
+  {n:"Circular Quay",l:"t1",a:-33.8617,g:151.2108},
+  {n:"Strathfield",l:"t1",a:-33.8734,g:151.0921},
+  {n:"Burwood",l:"t1",a:-33.8777,g:151.1021},
+  {n:"Redfern",l:"t1",a:-33.8918,g:151.198},
+  {n:"Kings Cross",l:"t4",a:-33.8749,g:151.2217},
+  {n:"Edgecliff",l:"t4",a:-33.877,g:151.2327},
+  {n:"Bondi Junction",l:"t4",a:-33.8916,g:151.248},
+  {n:"Sydenham",l:"metro_sw",a:-33.9148,g:151.1725},
+  {n:"Marrickville",l:"metro_sw",a:-33.9108,g:151.156},
+  {n:"Dulwich Hill",l:"metro_sw",a:-33.9106,g:151.1385},
+  {n:"Hurlstone Park",l:"metro_sw",a:-33.9129,g:151.1255},
+  {n:"Canterbury",l:"metro_sw",a:-33.9142,g:151.1176},
+  {n:"Campsie",l:"metro_sw",a:-33.9148,g:151.104},
+  {n:"Bankstown",l:"metro_sw",a:-33.9197,g:151.0339},
+];
+
+function hav(a1,g1,a2,g2){
+  const R=6371000,r=Math.PI/180;
+  const da=(a2-a1)*r,dg=(g2-g1)*r;
+  const x=Math.sin(da/2)**2+Math.cos(a1*r)*Math.cos(a2*r)*Math.sin(dg/2)**2;
+  return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
+}
+
+function nearest(lat,lng,lf){
+  const pool=lf==='all'?ST:ST.filter(s=>s.l===lf);
+  let b=null,bd=Infinity;
+  pool.forEach(s=>{const d=hav(lat,lng,s.a,s.g);if(d<bd){bd=d;b=s;}});
+  return{s:b,d:Math.round(bd)};
+}
+
+function fp(p){
+  if(!p)return'POA';
+  if(p>=1e6)return'$'+String(+(p/1e6).toFixed(2)).replace(/\.?0+$/,'')+'M';
+  return'$'+Math.round(p/1000)+'k';
+}
+
+function burl(){
+  const r=v('region'),t=v('ptype'),mn=v('minp'),mx=v('maxp'),bd=v('beds');
+  const p=new URLSearchParams({bedrooms:bd+'-any',price:mn+'-'+mx,'property-types':t,excludeunderoffer:'1'});
+  return'https://www.domain.com.au/sale/'+r+'/?'+p;
+}
+function v(id){return document.getElementById(id).value;}
+function upd(){document.getElementById('uprev').innerHTML='Domain URL: <span>'+burl()+'</span>';}
+function chkTok(){
+  const t=v('tok').trim(),b=document.getElementById('tokB'),btn=document.getElementById('goBtn');
+  if(t.length>10){b.textContent='SET';b.className='badge bok';btn.disabled=false;btn.textContent='Search via Apify';}
+  else{b.textContent='NOT SET';b.className='badge bwn';btn.disabled=true;btn.textContent='Search (add token first)';}
+}
+function stat(h){document.getElementById('statBar').innerHTML=h;}
+function sl(ms){return new Promise(r=>setTimeout(r,ms));}
+function sps(n,s){const e=document.getElementById('p'+n);if(e)e.className='ps'+(s?' '+s:'');}
+
+async function go(){
+  const tok=v('tok').trim();
+  if(!tok){alert('Paste your Apify token first.');return;}
+  const rad=parseInt(v('rad')),lf=v('line'),pg=parseInt(v('pages')),url=burl();
+  document.getElementById('psw').style.display='flex';
+  sps(1,'active');stat('<div class="sp"></div> Building URL...');
+  await sl(300);sps(1,'done');sps(2,'active');stat('<div class="sp"></div> Calling Apify...');
+  const inp={startUrls:[{url:url}],maxItems:pg*20,proxyConfiguration:{useApifyProxy:false}};
+  const ep='https://api.apify.com/v2/acts/easyapi~domain-com-au-property-scraper/run-sync-get-dataset-items?token='+tok+'&timeout=120&memory=512';
+  let data;
+  try{
+    sps(2,'done');sps(3,'active');
+    stat('<div class="sp"></div> Scraping Domain.com.au via Apify (15-45 sec)...');
+    const res=await fetch(ep,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(inp)});
+    if(!res.ok){
+      let msg='HTTP '+res.status;
+      try{const j=await res.json();msg=j.error&&j.error.message?j.error.message:msg;}catch(e){}
+      sps(3,'');
+      const h=res.status===401?'Token invalid — recheck Apify Console → Settings → Integrations.':res.status===402?'Free credit used up — top up at apify.com.':'Error: '+msg;
+      stat('<div class="notice">&#9888; '+h+'</div>');return;
+    }
+    data=await res.json();
+  }catch(e){
+    sps(3,'');
+    stat('<div class="notice">&#9888; Network error: '+e.message+'. Note: you may need to run this from a local web server (python -m http.server) rather than opening the file directly, due to CORS.</div>');
+    return;
+  }
+  if(!Array.isArray(data)||!data.length){sps(3,'done');sps(4,'');stat('No listings returned. Try a different region.');return;}
+  sps(3,'done');sps(4,'active');
+  stat('<div class="sp"></div> Filtering '+data.length+' listings by '+rad+'m station radius...');
+  await sl(200);
+  const mapped=data.map(l=>{
+    const lat=l.latitude||l.lat||(l.location&&l.location.lat);
+    const lng=l.longitude||l.lng||(l.location&&l.location.lng);
+    if(!lat||!lng)return null;
+    const price=l.price||l.priceValue||xp(l.priceText||l.displayPrice||'');
+    const addr=l.address||l.fullAddress||l.displayableAddress||'Address withheld';
+    const url2=l.url||l.listingUrl||'https://domain.com.au';
+    const img=l.images&&l.images[0]?l.images[0]:(l.mainImage||l.heroImage||null);
+    const nr=nearest(parseFloat(lat),parseFloat(lng),lf);
+    return{addr,lat:+lat,lng:+lng,price,beds:l.bedrooms||l.beds||0,baths:l.bathrooms||l.baths||0,park:l.carspaces||l.parking||0,type:l.propertyType||l.type||'House',url:url2,img,_s:nr.s,_d:nr.d,_demo:false};
+  }).filter(function(l){return l&&l._d<=rad;});
+  sps(4,'done');sps(5,'done');
+  stat('Done: '+mapped.length+' listings within '+rad+'m of a station (from '+data.length+' scraped)');
+  allR=mapped;srt(curS);showR();
+}
+
+function xp(s){
+  if(!s)return 0;
+  var m=s.replace(/,/g,'').match(/([\d.]+)\s*m/i)||s.replace(/,/g,'').match(/[\d.]+/);
+  if(!m)return 0;
+  var v=parseFloat(m[1]||m[0]);
+  return/m/i.test(s)&&v<1000?v*1e6:v>10000?v:v*1000;
+}
+
+const DEMO=[
+  {addr:'14 Pacific Hwy, Roseville NSW 2069',lat:-33.781,lng:151.179,price:2850000,beds:4,baths:2,park:2,type:'House',url:'https://domain.com.au',img:null},
+  {addr:'7 Ryde Rd, Pymble NSW 2073',lat:-33.746,lng:151.1448,price:2199000,beds:3,baths:2,park:2,type:'House',url:'https://domain.com.au',img:null},
+  {addr:'31 Boundary St, Roseville NSW 2069',lat:-33.7862,lng:151.182,price:2600000,beds:4,baths:3,park:2,type:'House',url:'https://domain.com.au',img:null},
+  {addr:'88 Kissing Point Rd, Turramurra NSW 2074',lat:-33.734,lng:151.132,price:2450000,beds:5,baths:3,park:2,type:'House',url:'https://domain.com.au',img:null},
+  {addr:'3/12 Bent St, Chatswood NSW 2067',lat:-33.799,lng:151.186,price:1350000,beds:3,baths:2,park:1,type:'Apartment',url:'https://domain.com.au',img:null},
+  {addr:'22 Werona Ave, Gordon NSW 2072',lat:-33.758,lng:151.1555,price:2980000,beds:4,baths:3,park:2,type:'House',url:'https://domain.com.au',img:null},
+  {addr:'5 Killara Ave, Killara NSW 2071',lat:-33.7695,lng:151.1638,price:2700000,beds:4,baths:2,park:2,type:'House',url:'https://domain.com.au',img:null},
+  {addr:'100 Fiddens Wharf Rd, Killara NSW 2071',lat:-33.772,lng:151.162,price:2380000,beds:3,baths:2,park:2,type:'Townhouse',url:'https://domain.com.au',img:null},
+  {addr:'1 Browns Waterhole Rd, Wahroonga NSW 2076',lat:-33.7175,lng:151.119,price:1999000,beds:4,baths:2,park:2,type:'House',url:'https://domain.com.au',img:null},
+  {addr:'14 Warwick Ave, Lindfield NSW 2070',lat:-33.7752,lng:151.1695,price:2750000,beds:4,baths:3,park:2,type:'House',url:'https://domain.com.au',img:null},
+  {addr:'55 Bent St, Lindfield NSW 2070',lat:-33.777,lng:151.172,price:1850000,beds:3,baths:2,park:1,type:'Townhouse',url:'https://domain.com.au',img:null},
+  {addr:'9 Pacific Hwy, Hornsby NSW 2077',lat:-33.703,lng:151.0995,price:1250000,beds:3,baths:1,park:1,type:'House',url:'https://domain.com.au',img:null},
+];
+
+function demo(){
+  const rad=parseInt(v('rad')),lf=v('line'),mn=parseInt(v('minp')),mx=parseInt(v('maxp')),bd=parseInt(v('beds')),pt=v('ptype');
+  stat('<div class="sp"></div> Loading demo...');
+  setTimeout(function(){
+    var f=DEMO.filter(function(l){return(!l.price)||(l.price>=mn&&l.price<=mx);})
+      .filter(function(l){return l.beds>=bd;})
+      .filter(function(l){return pt==='any'||l.type.toLowerCase()===pt;})
+      .map(function(l){var nr=nearest(l.lat,l.lng,lf);return Object.assign({},l,{_s:nr.s,_d:nr.d,_demo:true});})
+      .filter(function(l){return l._d<=rad;});
+    allR=f;srt('price');showR();
+    stat('Demo: '+f.length+' listings within '+rad+'m of a station');
+  },400);
+}
+
+var allR=[],curS='price';
+function srt(by){
+  curS=by;
+  ['price','dist','beds'].forEach(function(k){var e=document.getElementById('s-'+k);if(e)e.classList.toggle('on',k===by);});
+  var s=allR.slice();
+  if(by==='price')s.sort(function(a,b){return(a.price||0)-(b.price||0);});
+  if(by==='dist')s.sort(function(a,b){return a._d-b._d;});
+  if(by==='beds')s.sort(function(a,b){return b.beds-a.beds;});
+  rndr(s);
+}
+function rndr(list){
+  var g=document.getElementById('grid');
+  g.innerHTML='';
+  document.getElementById('rCount').textContent=list.length+' propert'+(list.length===1?'y':'ies');
+  if(!list.length){g.innerHTML='<div style="color:var(--mu);font-size:12px;padding:16px 0;grid-column:1/-1">No listings within this radius. Try expanding the distance or adjusting price.</div>';return;}
+  list.forEach(function(l){
+    var wm=Math.max(1,Math.round(l._d/80));
+    var ds=l._d<1000?l._d+'m':(l._d/1000).toFixed(1)+'km';
+    var c=document.createElement('div');
+    c.className='card';
+    c.onclick=function(){window.open(l.url,'_blank');};
+    var imgHtml=l.img?'<img src="'+l.img+'" alt="" loading="lazy" onerror="this.parentElement.innerHTML=\'NO IMAGE\'">':'<span>NO IMAGE</span>';
+    c.innerHTML=(l._demo?'<div class="db">DEMO</div>':'')+
+      '<div class="ci">'+imgHtml+'</div>'+
+      '<div class="cb">'+
+        '<div class="spl"><div class="sd"></div>'+(l._s?l._s.n:'?')+' &middot; '+ds+' &middot; ~'+wm+' min walk</div>'+
+        '<div class="cp">'+fp(l.price)+'</div>'+
+        '<div class="ca">'+l.addr+'</div>'+
+        '<div class="cs"><span>&#x1F6CF; '+l.beds+'</span><span>&#x1F6BF; '+l.baths+'</span><span>&#x1F697; '+l.park+'</span><span style="margin-left:auto;color:var(--ac);font-size:10px">'+l.type+'</span></div>'+
+        '<a href="'+l.url+'" target="_blank" class="cl" onclick="event.stopPropagation()">View on Domain &#x2197;</a>'+
+      '</div>';
+    g.appendChild(c);
+  });
+}
+function showR(){document.getElementById('rWrap').style.display='block';document.getElementById('emp').style.display='none';}
+upd();
+</script>
+</body>
+</html>
