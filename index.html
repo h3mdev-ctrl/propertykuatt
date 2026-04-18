@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>YC Property Finder V888</title>
+<title>YC Property Finder V728</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#0d0f0e;--sf:#141716;--sf2:#1c201e;--bd:#252a27;--ac:#b8f5a0;--ac2:#5dde3a;--tx:#e8ede9;--mu:#6b7d6e;--wn:#f0c060;--er:#f07060;--r:6px}
@@ -415,28 +415,32 @@ async function go(){
   await sl(200);
 
   const mapped=data.map(l=>{
-    // fatihtahta actor returns nested: location, listing, property, media objects
+    // fatihtahta field map (confirmed from listings.txt):
+    // lat/lng: l.location.latitude / l.location.longitude
+    // address: l.location.display_address
+    // url:     l.listing.listing_url
+    // image:   l.listing.tracking_metadata.images[0]
+    // price:   l.listing.tracking_metadata.price  (e.g. "For Sale - $2,000,000")
+    // beds/baths/parking/type: l.listing.tracking_metadata.*
     const loc = l.location || {};
     const lst = l.listing || {};
-    const prop = l.property || {};
-    const med = l.media || {};
+    const tm  = lst.tracking_metadata || {};
 
-    const lat = loc.latitude || loc.lat || l.latitude || l.lat;
-    const lng = loc.longitude || loc.lng || l.longitude || l.lng;
+    const lat = loc.latitude;
+    const lng = loc.longitude;
     if(!lat||!lng)return null;
 
-    const priceRaw = lst.price || lst.displayPrice || l.price || '';
-    const price = typeof priceRaw==='number' ? priceRaw : xp(String(priceRaw));
-    const addr = lst.address || loc.fullAddress || l.address || 'Address withheld';
-    const url2 = lst.url || l.url || 'https://domain.com.au';
-    const imgs = med.images || l.images || [];
-    const img = Array.isArray(imgs) ? (imgs[0]||null) : null;
-    const beds  = prop.bedrooms  || lst.bedrooms  || l.bedrooms  || 0;
-    const baths = prop.bathrooms || lst.bathrooms || l.bathrooms || 0;
-    const park  = prop.carspaces || lst.carspaces || l.carspaces || l.parking || 0;
-    const type  = prop.type || lst.propertyType || l.propertyType || 'House';
+    const addr  = loc.display_address || tm.address || 'Address withheld';
+    const url2  = lst.listing_url || 'https://domain.com.au';
+    const imgs  = tm.images || [];
+    const img   = imgs.length ? imgs[0] : null;
+    const price = xp(String(tm.price || ''));
+    const beds  = tm.bedrooms  || 0;
+    const baths = tm.bathrooms || 0;
+    const park  = tm.parking   || 0;
+    const type  = tm.secondaryPropertyType || tm.propertyType || 'House';
 
-    const nr=nearest(parseFloat(lat),parseFloat(lng),lf);
+    const nr = nearest(parseFloat(lat), parseFloat(lng), lf);
     return{addr,lat:+lat,lng:+lng,price,beds,baths,park,type,url:url2,img,_s:nr.s,_d:nr.d,_demo:false};
   }).filter(function(l){return l&&l._d<=rad;});
 
