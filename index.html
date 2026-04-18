@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>YC Property Finder</title>
+<title>YC Property Finder v2</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#0d0f0e;--sf:#141716;--sf2:#1c201e;--bd:#252a27;--ac:#b8f5a0;--ac2:#5dde3a;--tx:#e8ede9;--mu:#6b7d6e;--wn:#f0c060;--er:#f07060;--r:6px}
@@ -340,7 +340,7 @@ async function go(){
   // Step 1: start run async
   let runId, datasetId;
   try{
-    const res=await fetch(BASE+'/acts/easyapi~domain-com-au-property-scraper/runs?token='+tok+'&memory=512',{
+    const res=await fetch(BASE+'/acts/easyapi~domain-com-au-property-scraper/runs?token='+tok+'&memory=1024',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify(inp)
@@ -361,23 +361,27 @@ async function go(){
     sps(2,'');stat('<div class="notice">&#9888; Network error starting run: '+e.message+'</div>');return;
   }
 
-  // Step 2: poll until finished
+  // Step 2: smart poll using waitForFinish=60 (holds connection up to 60s, returns when done)
   sps(2,'done');sps(3,'active');
-  let elapsed=0, status='';
-  while(true){
-    await sl(4000);
-    elapsed+=4;
-    stat('<div class="sp"></div> Scraping Domain.com.au... '+elapsed+'s elapsed (usually 20-60s)');
+  let status='', attempt=0;
+  while(attempt<5){
+    attempt++;
+    stat('<div class="sp"></div> Scraping Domain.com.au... attempt '+attempt+'/5 (up to 60s each)');
     try{
-      const r=await fetch(BASE+'/actor-runs/'+runId+'?token='+tok);
+      const r=await fetch(BASE+'/actor-runs/'+runId+'?waitForFinish=60&token='+tok);
       const j=await r.json();
       status=j.data.status;
       if(status==='SUCCEEDED')break;
       if(status==='FAILED'||status==='ABORTED'||status==='TIMED-OUT'){
-        sps(3,'');stat('<div class="notice">&#9888; Apify run '+status+'. Try again or check your Apify console.</div>');return;
+        sps(3,'');stat('<div class="notice">&#9888; Apify run '+status+'. Check console.apify.com for details.</div>');return;
       }
-    }catch(e){ /* keep polling */ }
-    if(elapsed>180){sps(3,'');stat('<div class="notice">&#9888; Timed out waiting for Apify. Check console.apify.com for run status.</div>');return;}
+      // still RUNNING — loop again
+    }catch(e){
+      await sl(3000); // brief pause on network error then retry
+    }
+  }
+  if(status!=='SUCCEEDED'){
+    sps(3,'');stat('<div class="notice">&#9888; Run did not complete after 5 minutes. Check console.apify.com</div>');return;
   }
 
   // Step 3: fetch results
