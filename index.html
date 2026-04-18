@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Station Radius — Sydney Property Finder for YOHAN</title>
+<title>YC Property Finder</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#0d0f0e;--sf:#141716;--sf2:#1c201e;--bd:#252a27;--ac:#b8f5a0;--ac2:#5dde3a;--tx:#e8ede9;--mu:#6b7d6e;--wn:#f0c060;--er:#f07060;--r:6px}
@@ -79,7 +79,7 @@ input:focus,select:focus{border-color:var(--ac)}
 <div class="app">
 <header>
   <div class="ey">Sydney · NSW · Australia</div>
-  <h1>Station <em>Radius</em><br>Property Finder</h1>
+  <h1>YC <em>Property</em><br>Finder</h1>
   <p class="sub">Apify + Domain.com.au · Filters listings by walking distance to any Sydney train or metro station</p>
 </header>
 
@@ -331,31 +331,73 @@ async function go(){
   const rad=parseInt(v('rad')),lf=v('line'),pg=parseInt(v('pages')),url=burl();
   document.getElementById('psw').style.display='flex';
   sps(1,'active');stat('<div class="sp"></div> Building URL...');
-  await sl(300);sps(1,'done');sps(2,'active');stat('<div class="sp"></div> Calling Apify...');
+  await sl(300);sps(1,'done');sps(2,'active');
+  stat('<div class="sp"></div> Starting Apify run...');
+
   const inp={startUrls:[{url:url}],maxItems:pg*20,proxyConfiguration:{useApifyProxy:false}};
-  const ep='https://api.apify.com/v2/acts/easyapi~domain-com-au-property-scraper/run-sync-get-dataset-items?token='+tok+'&timeout=120&memory=512';
-  let data;
+  const BASE='https://api.apify.com/v2';
+
+  // Step 1: start run async
+  let runId, datasetId;
   try{
-    sps(2,'done');sps(3,'active');
-    stat('<div class="sp"></div> Scraping Domain.com.au via Apify (15-45 sec)...');
-    const res=await fetch(ep,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(inp)});
+    const res=await fetch(BASE+'/acts/easyapi~domain-com-au-property-scraper/runs?token='+tok+'&memory=512',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(inp)
+    });
     if(!res.ok){
       let msg='HTTP '+res.status;
       try{const j=await res.json();msg=j.error&&j.error.message?j.error.message:msg;}catch(e){}
-      sps(3,'');
-      const h=res.status===401?'Token invalid — recheck Apify Console → Settings → Integrations.':res.status===402?'Free credit used up — top up at apify.com.':'Error: '+msg;
+      sps(2,'');
+      const h=res.status===401?'Token invalid — recheck Apify Console → Settings → Integrations.'
+        :res.status===402?'Free credit used up — top up at apify.com.'
+        :'Apify error: '+msg;
       stat('<div class="notice">&#9888; '+h+'</div>');return;
     }
-    data=await res.json();
+    const j=await res.json();
+    runId=j.data.id;
+    datasetId=j.data.defaultDatasetId;
   }catch(e){
-    sps(3,'');
-    stat('<div class="notice">&#9888; Network error: '+e.message+'. Note: you may need to run this from a local web server (python -m http.server) rather than opening the file directly, due to CORS.</div>');
-    return;
+    sps(2,'');stat('<div class="notice">&#9888; Network error starting run: '+e.message+'</div>');return;
   }
-  if(!Array.isArray(data)||!data.length){sps(3,'done');sps(4,'');stat('No listings returned. Try a different region.');return;}
+
+  // Step 2: poll until finished
+  sps(2,'done');sps(3,'active');
+  let elapsed=0, status='';
+  while(true){
+    await sl(4000);
+    elapsed+=4;
+    stat('<div class="sp"></div> Scraping Domain.com.au... '+elapsed+'s elapsed (usually 20-60s)');
+    try{
+      const r=await fetch(BASE+'/actor-runs/'+runId+'?token='+tok);
+      const j=await r.json();
+      status=j.data.status;
+      if(status==='SUCCEEDED')break;
+      if(status==='FAILED'||status==='ABORTED'||status==='TIMED-OUT'){
+        sps(3,'');stat('<div class="notice">&#9888; Apify run '+status+'. Try again or check your Apify console.</div>');return;
+      }
+    }catch(e){ /* keep polling */ }
+    if(elapsed>180){sps(3,'');stat('<div class="notice">&#9888; Timed out waiting for Apify. Check console.apify.com for run status.</div>');return;}
+  }
+
+  // Step 3: fetch results
   sps(3,'done');sps(4,'active');
+  stat('<div class="sp"></div> Fetching results...');
+  let data=[];
+  try{
+    const r=await fetch(BASE+'/datasets/'+datasetId+'/items?token='+tok+'&limit=200');
+    data=await r.json();
+  }catch(e){
+    sps(4,'');stat('<div class="notice">&#9888; Error fetching results: '+e.message+'</div>');return;
+  }
+
+  if(!Array.isArray(data)||!data.length){
+    sps(4,'');stat('&#9888; No listings returned. Try a different suburb or check the URL preview is valid.');return;
+  }
+
   stat('<div class="sp"></div> Filtering '+data.length+' listings by '+rad+'m station radius...');
   await sl(200);
+
   const mapped=data.map(l=>{
     const lat=l.latitude||l.lat||(l.location&&l.location.lat);
     const lng=l.longitude||l.lng||(l.location&&l.location.lng);
@@ -367,6 +409,7 @@ async function go(){
     const nr=nearest(parseFloat(lat),parseFloat(lng),lf);
     return{addr,lat:+lat,lng:+lng,price,beds:l.bedrooms||l.beds||0,baths:l.bathrooms||l.baths||0,park:l.carspaces||l.parking||0,type:l.propertyType||l.type||'House',url:url2,img,_s:nr.s,_d:nr.d,_demo:false};
   }).filter(function(l){return l&&l._d<=rad;});
+
   sps(4,'done');sps(5,'done');
   stat('Done: '+mapped.length+' listings within '+rad+'m of a station (from '+data.length+' scraped)');
   allR=mapped;srt(curS);showR();
