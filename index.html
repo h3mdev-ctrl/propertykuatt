@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Station Radius — Sydney Property Finder</title>
+<title>Station Radius — Sydney Property Finder for YC</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#0d0f0e;--sf:#141716;--sf2:#1c201e;--bd:#252a27;--ac:#b8f5a0;--ac2:#5dde3a;--tx:#e8ede9;--mu:#6b7d6e;--wn:#f0c060;--er:#f07060;--r:6px}
@@ -104,17 +104,58 @@ input:focus,select:focus{border-color:var(--ac)}
         <option value="townhouse">Townhouse</option><option value="duplex">Duplex</option>
       </select>
     </div>
-    <div class="fg"><label>Region</label>
+    <div class="fg"><label>Suburb / Area</label>
       <select id="region" onchange="upd()">
-        <option value="north-shore-nsw">North Shore</option>
-        <option value="upper-north-shore-nsw">Upper North Shore</option>
-        <option value="northern-beaches-nsw">Northern Beaches</option>
-        <option value="eastern-suburbs-nsw">Eastern Suburbs</option>
-        <option value="inner-west-nsw">Inner West</option>
-        <option value="hills-district-nsw">Hills District</option>
-        <option value="parramatta-nsw">Parramatta</option>
-        <option value="sutherland-shire-nsw">Sutherland Shire</option>
-        <option value="sydney-nsw">All Sydney</option>
+        <optgroup label="North Shore">
+          <option value="chatswood-nsw-2067">Chatswood</option>
+          <option value="gordon-nsw-2072">Gordon</option>
+          <option value="killara-nsw-2071">Killara</option>
+          <option value="lindfield-nsw-2070">Lindfield</option>
+          <option value="roseville-nsw-2069">Roseville</option>
+          <option value="pymble-nsw-2073">Pymble</option>
+          <option value="turramurra-nsw-2074">Turramurra</option>
+          <option value="wahroonga-nsw-2076">Wahroonga</option>
+          <option value="hornsby-nsw-2077">Hornsby</option>
+          <option value="st-leonards-nsw-2065">St Leonards</option>
+          <option value="north-sydney-nsw-2060">North Sydney</option>
+          <option value="artarmon-nsw-2064">Artarmon</option>
+        </optgroup>
+        <optgroup label="Northern Beaches">
+          <option value="manly-nsw-2095">Manly</option>
+          <option value="dee-why-nsw-2099">Dee Why</option>
+          <option value="brookvale-nsw-2100">Brookvale</option>
+          <option value="mosman-nsw-2088">Mosman</option>
+        </optgroup>
+        <optgroup label="Eastern Suburbs">
+          <option value="bondi-junction-nsw-2022">Bondi Junction</option>
+          <option value="randwick-nsw-2031">Randwick</option>
+          <option value="paddington-nsw-2021">Paddington</option>
+          <option value="woollahra-nsw-2025">Woollahra</option>
+          <option value="double-bay-nsw-2028">Double Bay</option>
+        </optgroup>
+        <optgroup label="Inner West">
+          <option value="newtown-nsw-2042">Newtown</option>
+          <option value="leichhardt-nsw-2040">Leichhardt</option>
+          <option value="balmain-nsw-2041">Balmain</option>
+          <option value="marrickville-nsw-2204">Marrickville</option>
+          <option value="dulwich-hill-nsw-2203">Dulwich Hill</option>
+        </optgroup>
+        <optgroup label="Hills District">
+          <option value="castle-hill-nsw-2154">Castle Hill</option>
+          <option value="cherrybrook-nsw-2126">Cherrybrook</option>
+          <option value="kellyville-nsw-2155">Kellyville</option>
+          <option value="rouse-hill-nsw-2155">Rouse Hill</option>
+        </optgroup>
+        <optgroup label="Western Sydney">
+          <option value="parramatta-nsw-2150">Parramatta</option>
+          <option value="strathfield-nsw-2135">Strathfield</option>
+          <option value="burwood-nsw-2134">Burwood</option>
+        </optgroup>
+        <optgroup label="South">
+          <option value="sutherland-nsw-2232">Sutherland</option>
+          <option value="cronulla-nsw-2230">Cronulla</option>
+          <option value="miranda-nsw-2228">Miranda</option>
+        </optgroup>
       </select>
     </div>
     <div class="fg"><label>Min Price</label>
