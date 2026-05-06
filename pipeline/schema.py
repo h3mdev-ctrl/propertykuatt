@@ -68,3 +68,46 @@ def categorise(text: str | None) -> str:
         if needle in s:
             return label
     return "other"
+
+
+# Application-id prefix -> canonical category. Used as a fallback when
+# the free-text development description is uninformative (e.g. councils
+# that put a Lot/DP reference in the description column). Recognised
+# prefixes across NSW councils:
+#   DA / LDA       Development Application (treat as 'other' until the
+#                  detail page resolves a more specific dev type)
+#   MOD            Modification request — bucketed as alterations_additions
+#                  since modifications are overwhelmingly resi A&A
+#   CDP / CDC      Complying Development Certificate
+#   CC             Construction Certificate
+#   OC             Occupation Certificate
+#   S68            Section 68 Local Government Act approval
+#   REV            Section 8.2 review
+_ID_PREFIX_RULES: tuple[tuple[str, str], ...] = (
+    ("CDP", "cdc"),
+    ("CDC", "cdc"),
+    ("CC",  "cc"),
+    ("OC",  "oc"),
+    ("MOD", "alterations_additions"),
+    ("LDA", "other"),  # generic DA — leave as 'other', details refine
+    ("DA",  "other"),
+    ("S68", "infra"),
+    ("REV", "other"),
+)
+
+
+def categorise_with_id(text: str | None, application_id: str | None) -> str:
+    """Like ``categorise`` but use the application-id prefix as a tiebreaker.
+
+    Free-text rules win when they hit; otherwise we fall back to the id
+    prefix. Always returns a non-empty category string.
+    """
+    text_cat = categorise(text)
+    if text_cat != "other":
+        return text_cat
+    if application_id:
+        upper = application_id.upper()
+        for prefix, label in _ID_PREFIX_RULES:
+            if upper.startswith(prefix):
+                return label
+    return "other"

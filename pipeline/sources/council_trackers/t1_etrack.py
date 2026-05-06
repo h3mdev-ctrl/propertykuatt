@@ -42,7 +42,7 @@ from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup  # noqa: F401  -- imported lazily where needed
 
-from pipeline.schema import categorise
+from pipeline.schema import categorise_with_id
 from pipeline.sources.council_trackers.base import CouncilTrackerAdapter
 
 log = logging.getLogger(__name__)
@@ -270,8 +270,9 @@ class T1eTrackAdapter(CouncilTrackerAdapter):
             merged["lodged_date"] = _parse_date(merged["lodged_date"])
         if isinstance(merged.get("determined_date"), str):
             merged["determined_date"] = _parse_date(merged["determined_date"])
-        merged["category"] = categorise(
-            merged.get("_devtype") or merged.get("_apptype") or merged.get("description")
+        merged["category"] = categorise_with_id(
+            merged.get("_devtype") or merged.get("_apptype") or merged.get("description"),
+            merged.get("application_id"),
         )
         # Scratch fields used during scrape — drop before returning.
         for k in ("_apptype", "_devtype", "_postback_target", "_postback_arg",
