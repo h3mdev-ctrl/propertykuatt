@@ -106,68 +106,93 @@ def _parse_date(s: str | None) -> str | None:
 class T1eTrackAdapter(CouncilTrackerAdapter):
     vendor = "t1_etrack"
 
-    # eTrack splits very long ranges across pages. We chunk wide windows
-    # into 31-day slices and concat to keep result tables small + reduce
-    # the chance of pagination edge cases.
-    _max_window_days = 31
+    # T1 eTrack does not expose an arbitrary date-range search at the
+    # public results URL — instead it has six canned "period" buckets,
+    # each with a matching form code:
+    #
+    #   Period=TW  f=$P1.ETR.SEARCH.STW   This Week
+    #   Period=LW  f=$P1.ETR.SEARCH.SLW   Last Week
+    #   Period=TM  f=$P1.ETR.SEARCH.STM   This Month
+    #   Period=LM  f=$P1.ETR.SEARCH.SLM   Last Month
+    #   Period=TY  f=$P1.ETR.SEARCH.STY   This Year
+    #   Period=LY  f=$P1.ETR.SEARCH.SLY   Last Year
+    #
+    # Strategy: pick the smallest set of periods that covers the
+    # requested [lodged_from, lodged_to] window, hit each, dedupe by
+    # application_id, and post-filter rows by their parsed lodged_date.
+    _PERIOD_FORM = "$P1.ETR.SEARCH.S{code}"
 
-    # ------------------------------------------------------------------ #
-    # Search                                                             #
-    # ------------------------------------------------------------------ #
+    def _periods_covering(self, lodged_from: date, lodged_to: date) -> list[str]:
+        today = date.today()
+        # Approximate period bounds — generous on both sides so we
+        # never under-cover the requested window. Local date filtering
+        # handles the trim.
+        first_of_month = today.replace(day=1)
+        first_of_year  = today.replace(month=1, day=1)
+        prev_month_end = first_of_month - timedelta(days=1)
+        prev_month_start = prev_month_end.replace(day=1)
+
+        bounds: dict[str, tuple[date, date]] = {
+            "TW": (today - timedelta(days=today.weekday()), today),
+            "LW": (today - timedelta(days=today.weekday() + 7),
+                   today - timedelta(days=today.weekday() + 1)),
+            "TM": (first_of_month, today),
+            "LM": (prev_month_start, prev_month_end),
+            "TY": (first_of_year, today),
+            "LY": (first_of_year.replace(year=first_of_year.year - 1),
+                   first_of_year - timedelta(days=1)),
+        }
+        # Prefer narrower buckets first to minimise duplicate fetching.
+        priority = ["TW", "LW", "TM", "LM", "TY", "LY"]
+        chosen: list[str] = []
+        covered_from, covered_to = None, None
+        for code in priority:
+            b_from, b_to = bounds[code]
+            # Skip buckets fully outside the requested window.
+            if b_to < lodged_from or b_from > lodged_to:
+                continue
+            chosen.append(code)
+            covered_from = min(b_from, covered_from) if covered_from else b_from
+            covered_to   = max(b_to,   covered_to)   if covered_to   else b_to
+            if covered_from <= lodged_from and covered_to >= lodged_to:
+                break
+        return chosen or ["LM"]
 
     def search(self, lodged_from: date, lodged_to: date) -> Iterator[dict]:
-        cur = lodged_from
-        while cur <= lodged_to:
-            window_end = min(cur + timedelta(days=self._max_window_days - 1), lodged_to)
-            yield from self._search_window(cur, window_end)
-            cur = window_end + timedelta(days=1)
-
-    def _search_url(self) -> str:
-        path = (self.site.extra or {}).get("results_path", "eTrackApplicationSearchResults.aspx")
-        return urljoin(self.site.base_url, path)
-
-    def _search_window(self, lodged_from: date, lodged_to: date) -> Iterator[dict]:
-        """Submit the date-range advanced search and walk paginated results.
-
-        T1 eTrack's advanced search form posts back to itself with
-        __VIEWSTATE preserved. We do a GET to acquire the form, then a POST
-        with the date range filled in. Pagination is via __EVENTTARGET on
-        the same form.
-        """
         from bs4 import BeautifulSoup
 
-        url = self._search_url()
-        # Initial GET — establishes session + ViewState.
-        resp = self._get(url, params=(self.site.extra or {}).get("results_query", {}))
-        soup = BeautifulSoup(resp.text, "html.parser")
+        seen: set[str] = set()
+        url = urljoin(self.site.base_url, "eTrackApplicationSearchResults.aspx")
+        base_q = {"Field": "S", "r": (self.site.extra or {}).get("results_query", {}).get("r", "COR.P1.WEBGUEST")}
 
-        viewstate = self._extract_aspx_state(soup)
-        if not viewstate:
-            log.warning("%s: no ASPX viewstate found at %s — page layout may have changed",
-                        self.site.council, url)
-            return
+        for code in self._periods_covering(lodged_from, lodged_to):
+            params = {**base_q, "Period": code, "f": self._PERIOD_FORM.format(code=code)}
+            log.info("%s: GET Period=%s", self.site.council, code)
+            try:
+                resp = self._get(url, params=params)
+            except Exception as exc:  # noqa: BLE001
+                log.warning("%s: Period=%s fetch failed: %s", self.site.council, code, exc)
+                continue
+            soup = BeautifulSoup(resp.text, "html.parser")
+            for row in self._walk_paginated(url, soup, params):
+                aid = row.get("application_id")
+                if not aid or aid in seen:
+                    continue
+                seen.add(aid)
+                # Local trim by lodged_date if present in summary.
+                lodged = row.get("lodged_date")
+                if lodged:
+                    try:
+                        d = date.fromisoformat(lodged)
+                    except (TypeError, ValueError):
+                        d = None
+                    if d and not (lodged_from <= d <= lodged_to):
+                        continue
+                yield row
 
-        # Find the date inputs. T1 commonly uses control IDs like
-        # ``ctl00$Content$txtDateFrom`` / ``ctl00$Content$txtDateTo`` but
-        # the exact prefix varies by skin. We pattern-match by suffix.
-        date_from_name = self._find_input_name(soup, suffixes=("txtDateFrom", "txtFromDate", "DateLodgedFrom"))
-        date_to_name   = self._find_input_name(soup, suffixes=("txtDateTo",   "txtToDate",   "DateLodgedTo"))
-        submit_name    = self._find_input_name(soup, suffixes=("btnSearch", "btnGo"))
-
-        if not (date_from_name and date_to_name and submit_name):
-            log.warning("%s: could not locate date-range form fields — falling back to Period=LM scrape",
-                        self.site.council)
-            yield from self._scrape_period(soup)
-            return
-
-        form_data = {
-            **viewstate,
-            date_from_name: lodged_from.strftime("%d/%m/%Y"),
-            date_to_name:   lodged_to.strftime("%d/%m/%Y"),
-            submit_name:    "Search",
-        }
-        post = self._post(url, data=form_data)
-        page_soup = BeautifulSoup(post.text, "html.parser")
+    def _walk_paginated(self, url: str, page_soup, params: dict) -> Iterator[dict]:
+        """Walk paginated results inside a single Period bucket."""
+        from bs4 import BeautifulSoup
 
         page = 1
         while True:
@@ -177,15 +202,14 @@ class T1eTrackAdapter(CouncilTrackerAdapter):
             next_target = self._next_page_target(page_soup, page)
             if not next_target:
                 break
-            form_data["__EVENTTARGET"] = next_target
-            form_data["__EVENTARGUMENT"] = ""
-            form_data.update(self._extract_aspx_state(page_soup))
+            form_data = {
+                **self._extract_aspx_state(page_soup),
+                "__EVENTTARGET": next_target,
+                "__EVENTARGUMENT": "",
+            }
             time.sleep(self.request_delay_s)
-            post = self._post(url, data=form_data)
+            post = self._post(url, params=params, data=form_data)
             page_soup = BeautifulSoup(post.text, "html.parser")
-
-    def _scrape_period(self, soup) -> Iterator[dict]:
-        yield from self._parse_results_table(soup)
 
     # ------------------------------------------------------------------ #
     # Detail                                                             #

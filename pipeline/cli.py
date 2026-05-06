@@ -119,8 +119,11 @@ def cmd_debug(args: argparse.Namespace) -> None:
     debug_dir = RAW_DIR / "debug"
     debug_dir.mkdir(parents=True, exist_ok=True)
 
-    url = adapter._search_url() if hasattr(adapter, "_search_url") else site.base_url
-    params = (site.extra or {}).get("results_query", {}) or {}
+    from urllib.parse import urljoin
+    url = urljoin(site.base_url, "eTrackApplicationSearchResults.aspx")
+    # Use Period=LM so the form code matches and we get a real results
+    # page rather than the T1 error skin.
+    params = {"Field": "S", "r": "COR.P1.WEBGUEST", "Period": "LM", "f": "$P1.ETR.SEARCH.SLM"}
     logging.info("GET %s params=%s", url, params)
     resp = adapter._get(url, params=params)
     out = debug_dir / f"{args.council.lower().replace(' ', '_')}_search.html"
