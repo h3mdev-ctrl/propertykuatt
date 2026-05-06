@@ -20,9 +20,7 @@ from datetime import date
 
 import pandas as pd
 
-from pipeline.aggregator import aggregate_flows
 from pipeline.config import OUTPUT_DIR
-from pipeline.geocode import attach_sa2
 from pipeline.sources import opendata_extract
 from pipeline.sources.council_trackers import REGISTRY, get_adapter
 
@@ -81,9 +79,54 @@ def cmd_opendata(args: argparse.Namespace) -> None:
     _persist(df)
 
 
+def cmd_debug(args: argparse.Namespace) -> None:
+    """One-shot reachability + selector check for a single council.
+
+    Saves the raw search-results HTML to data/raw/debug/ and prints what
+    was detected (form fields, results-table row count). Use this on the
+    first run against a new council to tune selectors before a full pull.
+    """
+    from pipeline.config import RAW_DIR
+    from pipeline.sources.council_trackers.registry import REGISTRY
+    from bs4 import BeautifulSoup
+
+    site = REGISTRY[args.council]
+    adapter = get_adapter(args.council)
+
+    debug_dir = RAW_DIR / "debug"
+    debug_dir.mkdir(parents=True, exist_ok=True)
+
+    url = adapter._search_url() if hasattr(adapter, "_search_url") else site.base_url
+    params = (site.extra or {}).get("results_query", {}) or {}
+    logging.info("GET %s params=%s", url, params)
+    resp = adapter._get(url, params=params)
+    out = debug_dir / f"{args.council.lower().replace(' ', '_')}_search.html"
+    out.write_text(resp.text)
+    logging.info("wrote %s (%d bytes, status %s)", out, len(resp.text), resp.status_code)
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+    state = adapter._extract_aspx_state(soup) if hasattr(adapter, "_extract_aspx_state") else {}
+    logging.info("ASPX state keys present: %s", list(state.keys()))
+
+    inputs = [(i.get("name"), i.get("type"), i.get("value", "")[:30])
+              for i in soup.find_all(["input", "select"]) if i.get("name")]
+    logging.info("form inputs (%d):", len(inputs))
+    for name, type_, value in inputs[:40]:
+        logging.info("  %-50s type=%-10s value=%r", name, type_, value)
+
+    tables = soup.find_all("table")
+    logging.info("tables on page: %d", len(tables))
+    for i, t in enumerate(tables[:10]):
+        logging.info("  table[%d] id=%r class=%r rows=%d",
+                     i, t.get("id"), t.get("class"), len(t.find_all("tr")))
+
+
 def cmd_aggregate(_args: argparse.Namespace) -> None:
     if not APPS_PATH.exists():
         raise SystemExit(f"{APPS_PATH} not found — run scrape or opendata first")
+    from pipeline.aggregator import aggregate_flows
+    from pipeline.geocode import attach_sa2
+
     apps = pd.read_parquet(APPS_PATH)
     apps = attach_sa2(apps)
     flows = aggregate_flows(apps)
@@ -110,6 +153,10 @@ def main() -> None:
 
     ag = sub.add_parser("aggregate")
     ag.set_defaults(func=cmd_aggregate)
+
+    db = sub.add_parser("debug", help="dump raw HTML + detected form fields for one council")
+    db.add_argument("--council", required=True)
+    db.set_defaults(func=cmd_debug)
 
     args = p.parse_args()
     args.func(args)
