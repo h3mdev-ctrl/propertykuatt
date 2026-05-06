@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+data/raw/
+data/interim/
+data/output/
+*.parquet
+*.shp
+*.dbf
+*.shx
+*.prj
+*.cpg
+.DS_Store
