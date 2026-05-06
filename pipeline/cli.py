@@ -25,6 +25,7 @@ from pipeline.sources import opendata_extract
 from pipeline.sources.council_trackers import REGISTRY, get_adapter
 
 APPS_PATH = OUTPUT_DIR / "applications.parquet"
+APPS_CSV  = OUTPUT_DIR / "applications.csv"
 FLOWS_PATH = OUTPUT_DIR / "suburb_flows.parquet"
 
 
@@ -32,16 +33,38 @@ def _parse_date(s: str) -> date:
     return date.fromisoformat(s)
 
 
+def _has_pyarrow() -> bool:
+    try:
+        import pyarrow  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
+def _read_apps() -> pd.DataFrame:
+    if _has_pyarrow() and APPS_PATH.exists():
+        return pd.read_parquet(APPS_PATH)
+    if APPS_CSV.exists():
+        return pd.read_csv(APPS_CSV)
+    return pd.DataFrame()
+
+
+def _write_apps(df: pd.DataFrame) -> None:
+    if _has_pyarrow():
+        df.to_parquet(APPS_PATH, index=False)
+    df.to_csv(APPS_CSV, index=False)
+
+
 def _persist(new_apps: pd.DataFrame) -> pd.DataFrame:
-    """Upsert by (application_id, source) into the running applications parquet."""
-    if APPS_PATH.exists():
-        existing = pd.read_parquet(APPS_PATH)
+    """Upsert by (application_id, source) into the running applications store."""
+    existing = _read_apps()
+    if not existing.empty:
         combined = pd.concat([existing, new_apps], ignore_index=True)
         combined = combined.drop_duplicates(subset=["application_id", "source"], keep="last")
     else:
         combined = new_apps
-    combined.to_parquet(APPS_PATH, index=False)
-    logging.info("applications.parquet now has %d rows", len(combined))
+    _write_apps(combined)
+    logging.info("applications store now has %d rows", len(combined))
     return combined
 
 
@@ -122,12 +145,12 @@ def cmd_debug(args: argparse.Namespace) -> None:
 
 
 def cmd_aggregate(_args: argparse.Namespace) -> None:
-    if not APPS_PATH.exists():
-        raise SystemExit(f"{APPS_PATH} not found — run scrape or opendata first")
+    apps = _read_apps()
+    if apps.empty:
+        raise SystemExit("no applications found — run scrape or opendata first")
     from pipeline.aggregator import aggregate_flows
     from pipeline.geocode import attach_sa2
 
-    apps = pd.read_parquet(APPS_PATH)
     apps = attach_sa2(apps)
     flows = aggregate_flows(apps)
     flows.to_parquet(FLOWS_PATH, index=False)
