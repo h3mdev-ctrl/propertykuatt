@@ -158,9 +158,15 @@ class T1eTrackAdapter(CouncilTrackerAdapter):
                 break
         return chosen or ["LM"]
 
-    def search(self, lodged_from: date, lodged_to: date) -> Iterator[dict]:
+    @staticmethod
+    def _soup(resp) -> "BeautifulSoup":
         from bs4 import BeautifulSoup
+        # T1 serves CP1252 but doesn't always declare it; pass raw bytes
+        # so bs4 sniffs the meta tag rather than relying on requests'
+        # default ISO-8859-1.
+        return BeautifulSoup(resp.content, "html.parser")
 
+    def search(self, lodged_from: date, lodged_to: date) -> Iterator[dict]:
         seen: set[str] = set()
         url = urljoin(self.site.base_url, "eTrackApplicationSearchResults.aspx")
         base_q = {"Field": "S", "r": (self.site.extra or {}).get("results_query", {}).get("r", "COR.P1.WEBGUEST")}
@@ -173,12 +179,16 @@ class T1eTrackAdapter(CouncilTrackerAdapter):
             except Exception as exc:  # noqa: BLE001
                 log.warning("%s: Period=%s fetch failed: %s", self.site.council, code, exc)
                 continue
-            soup = BeautifulSoup(resp.text, "html.parser")
+            soup = self._soup(resp)
             for row in self._walk_paginated(url, soup, params):
                 aid = row.get("application_id")
                 if not aid or aid in seen:
                     continue
                 seen.add(aid)
+                # Stash the search-page URL + params so fetch_detail can
+                # re-acquire ViewState before posting back.
+                row["_search_url"] = url
+                row["_search_params"] = params
                 # Local trim by lodged_date if present in summary.
                 lodged = row.get("lodged_date")
                 if lodged:
@@ -192,8 +202,6 @@ class T1eTrackAdapter(CouncilTrackerAdapter):
 
     def _walk_paginated(self, url: str, page_soup, params: dict) -> Iterator[dict]:
         """Walk paginated results inside a single Period bucket."""
-        from bs4 import BeautifulSoup
-
         page = 1
         while True:
             for row in self._parse_results_table(page_soup):
@@ -209,25 +217,42 @@ class T1eTrackAdapter(CouncilTrackerAdapter):
             }
             time.sleep(self.request_delay_s)
             post = self._post(url, params=params, data=form_data)
-            page_soup = BeautifulSoup(post.text, "html.parser")
+            page_soup = self._soup(post)
 
     # ------------------------------------------------------------------ #
     # Detail                                                             #
     # ------------------------------------------------------------------ #
 
     def fetch_detail(self, summary: dict) -> dict:
-        from bs4 import BeautifulSoup
+        """Fetch the application's detail view via __doPostBack.
+
+        T1 detail links are JavaScript postbacks against the search-page
+        form, not real URLs. We refresh the search page (cheap — the
+        Period bucket is cached server-side), grab a fresh ViewState,
+        then POST with __EVENTTARGET set to the row's postback control.
+        The server responds with the rendered detail page.
+        """
+        merged = dict(summary)
+        target = summary.get("_postback_target")
+        if not target:
+            # Fall back to whatever data we already have from the summary row.
+            return self._finalise_detail(merged)
 
         time.sleep(self.request_delay_s)
-        detail_url = summary.get("source_url")
-        if not detail_url:
-            return summary
+        search_url = summary.get("_search_url")
+        search_params = summary.get("_search_params") or {}
+        resp = self._get(search_url, params=search_params)
+        page_soup = self._soup(resp)
 
-        resp = self._get(detail_url)
-        soup = BeautifulSoup(resp.text, "html.parser")
+        form_data = {
+            **self._extract_aspx_state(page_soup),
+            "__EVENTTARGET": target,
+            "__EVENTARGUMENT": summary.get("_postback_arg", ""),
+        }
+        post = self._post(search_url, params=search_params, data=form_data)
+        detail_soup = self._soup(post)
 
-        merged = dict(summary)
-        for label_cell, value_cell in self._iter_label_value_pairs(soup):
+        for label_cell, value_cell in self._iter_label_value_pairs(detail_soup):
             label = (label_cell.get_text(" ", strip=True) or "").lower()
             value = value_cell.get_text(" ", strip=True) or None
             for needle, field in _DETAIL_LABEL_MAP:
@@ -235,14 +260,23 @@ class T1eTrackAdapter(CouncilTrackerAdapter):
                     merged[field] = value
                     break
 
+        merged["source_url"] = post.url
+        return self._finalise_detail(merged)
+
+    @staticmethod
+    def _finalise_detail(merged: dict) -> dict:
         merged["cost_of_works"] = _parse_money(merged.get("cost_of_works"))
-        merged["lodged_date"] = _parse_date(merged.get("lodged_date"))
-        merged["determined_date"] = _parse_date(merged.get("determined_date"))
-        merged["category"] = categorise(merged.get("_devtype") or merged.get("_apptype") or merged.get("description"))
-        merged["source_url"] = detail_url
-        # _apptype / _devtype are scratch fields — drop before returning.
-        merged.pop("_apptype", None)
-        merged.pop("_devtype", None)
+        if isinstance(merged.get("lodged_date"), str):
+            merged["lodged_date"] = _parse_date(merged["lodged_date"])
+        if isinstance(merged.get("determined_date"), str):
+            merged["determined_date"] = _parse_date(merged["determined_date"])
+        merged["category"] = categorise(
+            merged.get("_devtype") or merged.get("_apptype") or merged.get("description")
+        )
+        # Scratch fields used during scrape — drop before returning.
+        for k in ("_apptype", "_devtype", "_postback_target", "_postback_arg",
+                  "_search_url", "_search_params"):
+            merged.pop(k, None)
         return merged
 
     # ------------------------------------------------------------------ #
@@ -267,27 +301,31 @@ class T1eTrackAdapter(CouncilTrackerAdapter):
                     return name
         return None
 
+    _POSTBACK_RE = re.compile(r"__doPostBack\('([^']+)','([^']*)'\)")
+
     def _parse_results_table(self, soup) -> Iterator[dict]:
         """Yield summary dicts from the search results table.
 
-        T1 renders results as a single ``<table>`` with a header row and
-        clickable application-number cells linking to the detail page.
+        T1 renders results as a ``<table class="grid">`` with one header
+        row of ``<th>`` cells and one ``<tr>`` of ``<td>`` cells per
+        application. Application-number cells contain a postback link
+        rather than a real href; we capture the postback control name in
+        ``_postback_target`` so ``fetch_detail`` can follow it.
         """
-        from bs4 import BeautifulSoup  # noqa: F401
-
         table = soup.find("table", id=re.compile(r"grd|Results|Search", re.I))
         if table is None:
             return
         headers = [th.get_text(" ", strip=True).lower() for th in table.find_all("th")]
+        if not headers:
+            return
         for tr in table.find_all("tr"):
             tds = tr.find_all("td")
-            if not tds:
+            if not tds or len(tds) != len(headers):
                 continue
             cells = [td.get_text(" ", strip=True) for td in tds]
-            link = tr.find("a", href=True)
             row: dict = {}
             for header, value in zip(headers, cells):
-                if "application" in header and "number" in header:
+                if "application" in header:        # "Application Link", "Application Number", ...
                     row["application_id"] = value
                 elif "lodged" in header or "lodgement" in header:
                     row["lodged_date"] = _parse_date(value)
@@ -297,14 +335,23 @@ class T1eTrackAdapter(CouncilTrackerAdapter):
                     row["status"] = value
                 elif "address" in header or "property" in header:
                     row["address"] = value
-                elif "type" in header:
+                elif "group" in header:            # "Group Description" — application category
                     row["_devtype"] = value
                 elif "description" in header or "proposal" in header:
                     row["description"] = value
                 elif "value" in header or "cost" in header or "estimated" in header:
                     row["cost_of_works"] = _parse_money(value)
+
+            # First cell usually holds the postback link to the detail view.
+            link = tds[0].find("a", href=True)
             if link:
-                row["source_url"] = urljoin(self.site.base_url, link["href"])
+                m = self._POSTBACK_RE.search(link["href"])
+                if m:
+                    row["_postback_target"] = m.group(1)
+                    row["_postback_arg"] = m.group(2)
+                else:
+                    row["source_url"] = urljoin(self.site.base_url, link["href"])
+
             if row.get("application_id"):
                 yield row
 
