@@ -72,10 +72,14 @@ def cmd_scrape(args: argparse.Namespace) -> None:
     councils: list[str]
     if args.all_t1:
         councils = [c for c, s in REGISTRY.items() if s.vendor == "t1_etrack"]
+    elif args.all_open_cities:
+        councils = [c for c, s in REGISTRY.items() if s.vendor == "open_cities"]
+    elif args.all_civica:
+        councils = [c for c, s in REGISTRY.items() if s.vendor == "civica_authority"]
     elif args.council:
         councils = list(args.council)
     else:
-        raise SystemExit("specify --council COUNCIL or --all-t1")
+        raise SystemExit("specify --council COUNCIL, --all-t1, --all-open-cities or --all-civica")
 
     frames = []
     for council in councils:
@@ -169,6 +173,8 @@ def main() -> None:
     sp = sub.add_parser("scrape")
     sp.add_argument("--council", action="append", help="council name (repeatable)")
     sp.add_argument("--all-t1", action="store_true", help="scrape every council on the T1/eTrack adapter")
+    sp.add_argument("--all-open-cities", action="store_true", help="scrape every council on the Open Cities / XC.Track adapter")
+    sp.add_argument("--all-civica", action="store_true", help="scrape every council on the Civica Authority / ePathway adapter")
     sp.add_argument("--from", dest="lodged_from", required=True, type=_parse_date)
     sp.add_argument("--to",   dest="lodged_to",   required=True, type=_parse_date)
     sp.set_defaults(func=cmd_scrape)
