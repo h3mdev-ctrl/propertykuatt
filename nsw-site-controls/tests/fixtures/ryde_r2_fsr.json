@@ -1,0 +1,19 @@
+{
+  "objectIdFieldName": "OBJECTID",
+  "geometryType": "esriGeometryPolygon",
+  "spatialReference": { "wkid": 4283 },
+  "fields": [
+    { "name": "FSR", "type": "esriFieldTypeDouble" },
+    { "name": "SYM_CODE", "type": "esriFieldTypeString" },
+    { "name": "EPI_NAME", "type": "esriFieldTypeString" }
+  ],
+  "features": [
+    {
+      "attributes": {
+        "FSR": 0.5,
+        "SYM_CODE": "N",
+        "EPI_NAME": "Ryde Local Environmental Plan 2014"
+      }
+    }
+  ]
+}

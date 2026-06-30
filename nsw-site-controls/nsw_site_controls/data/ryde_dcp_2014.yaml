@@ -1,0 +1,68 @@
+council: City of Ryde
+instrument: Development Control Plan 2014
+source_part: "Part 3.3 — Dwelling Houses and Dual Occupancy"
+source_url: "https://www.ryde.nsw.gov.au/Planning-and-Development/Planning-Controls/Development-Control-Plan"
+retrieved: 2026-06-29
+note: >
+  Controls transcribed from the adopted Ryde DCP 2014 Part 3.3. The DCP sits
+  UNDER the Ryde LEP 2014 and any applicable State policy (SEPP). It does not
+  decide whether your development type is permitted in the zone — check the
+  zone first. Values are the numeric standards; read the clause for the full
+  objective and exceptions.
+
+dev_types:
+  dwelling-house:
+    label: Dwelling house
+    controls:
+      - control: Front setback
+        value: "6 m from the primary street boundary. Corner lots: min 2 m to the secondary street. Garages set back ≥1 m behind the front façade."
+        clause: "2.9.1 (a),(b),(c)"
+      - control: Side setback
+        value: "Single storey: 0.9 m. Two storey: 1.5 m. Lots wider than long: one side ≥ 20% of the width or 8 m, whichever is greater."
+        clause: "2.9.2 (a),(b),(d)"
+      - control: Rear setback
+        value: "25% of the site length or 8 m, whichever is greater. Battle-axe lots: 8 m. Constrained lots: min 4 m. Must fit the 8 m × 8 m deep-soil area."
+        clause: "2.9.3 (a),(b),(c)"
+      - control: Max building height
+        value: "9.5 m overall; max wall-plate 7.5 m (8 m for a pitched roof); maximum 2 storeys."
+        clause: "2.8.1"
+      - control: Ceiling height
+        value: "Habitable rooms min 2.4 m."
+        clause: "2.8.2"
+      - control: Deep soil
+        value: "≥ 35% of the allotment, including an 8 m × 8 m area in the rear yard; 100% permeable, no structures."
+        clause: "2.6.1 (2)"
+      - control: Landscaping (front garden)
+        value: "Hard-paved area ≤ 40% of the front garden; provide ≥ 1 tree capable of 10 m mature height."
+        clause: "2.13"
+      - control: Site coverage
+        value: "No fixed % in Part 3.3 — governed by FSR (from the LEP) + the 35% deep-soil control."
+        clause: "(see FSR in LEP + 2.6.1)"
+      - control: Car parking
+        value: "Up to 2 spaces per dwelling (Part 9.3). 36 m² (2 cars) / 18 m² (1 car) may be excluded from GFA."
+        clause: "2.11.1 (a) / Part 9.3"
+      - control: Excavation / cut
+        value: "Excavation depth limited to 1.2 m max under the deep-soil provisions; cut/fill to keep within height & storey limits."
+        clause: "2.6.1 (e)"
+      - control: Front fence
+        value: "Max 1.8 m if ≥ 50% open above a solid base (base ≤ 900 mm); solid masonry up to 1.8 m only on arterial roads."
+        clause: "2.x Fences"
+
+  dual-occupancy:
+    label: Dual occupancy (attached)
+    controls:
+      - control: Minimum lot
+        value: "≥ 580 m², road frontage ≥ 10 m, width ≥ 15 m at 7.5 m from the frontage. Battle-axe: ≥ 740 m² (excl. access corridor), frontage ≥ 3 m, corridor ≥ 3 m wide."
+        clause: "Part 3.3 General / Ryde LEP 2014 cl 4.1B"
+      - control: Max height / storeys
+        value: "Max 2 storeys. A duplex is a single building, ≤ 2 storeys, containing 2 dwellings (9.5 m height as per dwelling house)."
+        clause: "2.8.1"
+      - control: Setbacks
+        value: "As per dwelling-house controls (front 6 m, side 0.9/1.5 m, rear 25%-or-8 m). The primary street frontage takes the larger setback."
+        clause: "2.9"
+      - control: Deep soil
+        value: "≥ 35% deep soil; the allotment needs only ONE 8 m × 8 m deep-soil area (not one per dwelling)."
+        clause: "2.6.1 (2)(c)"
+      - control: Car parking
+        value: "1 space per dwelling (Part 9.3)."
+        clause: "2.11.1 / Part 9.3"
