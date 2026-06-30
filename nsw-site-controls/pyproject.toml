@@ -1,0 +1,26 @@
+[project]
+name = "nsw-site-controls"
+version = "0.1.0"
+description = "CLI that turns a NSW site location into the planning controls you can design to (LEP/SEPP envelope + curated council DCP)."
+requires-python = ">=3.10"
+dependencies = ["PyYAML>=6"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+ingest = ["pdfplumber>=0.11"]
+
+[project.scripts]
+controls = "nsw_site_controls.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["nsw_site_controls*"]
+
+[tool.setuptools.package-data]
+nsw_site_controls = ["data/*.yaml"]
+
+[tool.pytest.ini_options]
+markers = ["live: hits real NSW/SIX services (opt-in; set NSC_LIVE=1)"]

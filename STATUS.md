@@ -5,6 +5,21 @@ into each suburb (DA cost-of-works, CDCs, infrastructure spend) rather
 than backwards-looking sales prices. Pilot footprint: Sydney CBD + 20km
 radius, 18 LGAs.
 
+## Sections
+
+- **`pipeline/`** — the suburb capital-flow heatmap (this STATUS doc below).
+  *Macro altitude:* where the dollars are committed, per SA2/suburb.
+- **`nsw-site-controls/`** — site-level planning controls CLI (added 2026-06).
+  *Micro altitude:* for a single site (lot/DP, coords, or address) it returns
+  the LEP/SEPP envelope (zoning, FSR→max GFA, height, min-lot, heritage) via the
+  NSW Planning ArcGIS REST layers, plus the City of Ryde DCP 2014 setback/parking/
+  landscaping controls from a clause-cited curated YAML. Self-contained Python
+  package with its own README + 49 offline unit tests; see
+  [`nsw-site-controls/README.md`](nsw-site-controls/README.md). Natural pair to the
+  heatmap — same NSW planning data, opposite zoom level: the heatmap tells you
+  *which suburb* is heating up; site-controls tells you *what you can build* on a
+  given lot there. Both already touch Ryde.
+
 ## What's built
 
 - `pipeline/schema.py` — canonical record schema every source normalises to.
