@@ -304,6 +304,117 @@ function deriveEnvelope(site, env) {
 }
 
 // ----------------------------------------------------------------------------
+// Frontage estimate (not in the Python tool yet — web-only).
+//
+// Accurate frontage lives on the registered Deposited Plan (DP), not in any
+// free queryable API. But the digital cadastre boundary IS survey-derived, so
+// if we can pick the *street-facing* edge, its measured length is a close
+// approximation. Heuristic: sample a point a few metres outside each edge and
+// query the cadastre — a boundary shared with a neighbour returns that
+// neighbour's lot; a boundary facing the road returns nothing (the carriageway
+// is unparcelled). The "open" edge(s) are the frontage. Corner lots show 2.
+// ----------------------------------------------------------------------------
+function orientedBBox(pts, mx, my) {
+  // min-area bounding rectangle by rotating calipers (1° steps). Returns the
+  // two side lengths in metres — a rough proxy when road detection is unavailable.
+  const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length;
+  const cy = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+  const local = pts.map((p) => [(p[0] - cx) * mx, (p[1] - cy) * my]);
+  let best = null;
+  for (let deg = 0; deg < 90; deg++) {
+    const a = (deg * Math.PI) / 180, c = Math.cos(a), s = Math.sin(a);
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const [x, y] of local) {
+      const rx = x * c - y * s, ry = x * s + y * c;
+      if (rx < minX) minX = rx; if (rx > maxX) maxX = rx;
+      if (ry < minY) minY = ry; if (ry > maxY) maxY = ry;
+    }
+    const w = maxX - minX, h = maxY - minY, area = w * h;
+    if (!best || area < best.area) best = { area, w, h };
+  }
+  return { minSide: Math.min(best.w, best.h), maxSide: Math.max(best.w, best.h) };
+}
+
+async function estimateFrontage(site) {
+  const out = { primary_m: null, secondary_m: null, total_open_m: 0, corner: false,
+                method: null, openSegments: [], bbox: null };
+  if (!site.parcel || !site.parcel.rings || !site.parcel.rings.length) return out;
+  const ring = site.parcel.rings[0];
+  const pts = (ring.length > 1 && ring[0][0] === ring[ring.length - 1][0] && ring[0][1] === ring[ring.length - 1][1])
+    ? ring.slice(0, -1) : ring;
+  if (pts.length < 3) return out;
+
+  const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length;
+  const cy = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+  const mx = 111320 * Math.cos((cy * Math.PI) / 180), my = 110540;
+
+  const edges = [];
+  for (let i = 0; i < pts.length; i++) {
+    const p1 = pts[i], p2 = pts[(i + 1) % pts.length];
+    const len = Math.hypot((p1[0] - p2[0]) * mx, (p1[1] - p2[1]) * my);
+    edges.push({ p1, p2, len, midx: (p1[0] + p2[0]) / 2, midy: (p1[1] + p2[1]) / 2 });
+  }
+  // Test every non-degenerate edge — a curved frontage is many short chords, so
+  // we must NOT filter them out. Cap total cadastre hits as a safety valve.
+  const testable = edges.filter((e) => e.len >= 0.4).slice(0, 40);
+  let anyFailed = false;
+  await Promise.all(testable.map(async (e) => {
+    const dx = e.midx - cx, dy = e.midy - cy;
+    const rad = Math.atan2(dy * my, dx * mx);
+    const olon = e.midx + (6 * Math.cos(rad)) / mx;
+    const olat = e.midy + (6 * Math.sin(rad)) / my;
+    try {
+      const f = await arcQuery(CADASTRE_SERVICE, CADASTRE_LOT_LAYER, {
+        geometry: pointGeometry(olon, olat), geometryType: "esriGeometryPoint",
+        outFields: "lotidstring", returnGeometry: false,
+      });
+      e.open = !f.length; // nothing outside this edge -> road-facing
+    } catch {
+      e.open = null; anyFailed = true;
+    }
+  }));
+
+  // Group contiguous open edges (ring order, wrapping) into frontage "runs" —
+  // one run per street the lot fronts (a corner lot yields two).
+  const n = edges.length;
+  const op = edges.map((e) => e.open === true);
+  const runs = [];
+  if (op.some(Boolean)) {
+    if (op.every(Boolean)) {
+      runs.push(edges.slice());
+    } else {
+      const start = op.indexOf(false);
+      let cur = null;
+      for (let c = 0; c < n; c++) {
+        const k = (start + c) % n;
+        if (op[k]) { (cur || (cur = [])).push(edges[k]); }
+        else if (cur) { runs.push(cur); cur = null; }
+      }
+      if (cur) runs.push(cur);
+    }
+  }
+
+  if (runs.length) {
+    const runLen = (r) => r.reduce((s, e) => s + e.len, 0);
+    runs.sort((a, b) => runLen(b) - runLen(a));
+    out.primary_m = runLen(runs[0]);
+    out.total_open_m = runs.reduce((s, r) => s + runLen(r), 0);
+    const realRuns = runs.filter((r) => runLen(r) >= 3);
+    out.corner = realRuns.length >= 2;
+    if (out.corner) out.secondary_m = runLen(realRuns[1]);
+    out.openSegments = runs.flat().map((e) => [[e.p1[1], e.p1[0]], [e.p2[1], e.p2[0]]]);
+    out.method = "measured street-facing boundary (cadastre)";
+  } else if (testable.length) {
+    out.bbox = orientedBBox(pts, mx, my);
+    out.primary_m = out.bbox.minSide;
+    out.method = anyFailed
+      ? "approx — road check unavailable; narrowest lot dimension"
+      : "approx — narrowest lot dimension (no open street edge detected)";
+  }
+  return out;
+}
+
+// ----------------------------------------------------------------------------
 // dcp.py + ryde_dcp_2014.yaml (inlined)
 // ----------------------------------------------------------------------------
 const DCP_ALIASES = {
@@ -442,7 +553,16 @@ function fmtValue(cv) {
   return s;
 }
 
-function renderSheet(site, env, dcp) {
+function fmtFrontage(frontage) {
+  if (!frontage || frontage.primary_m == null) return null;
+  let main = `≈ ${frontage.primary_m.toFixed(1)} m`;
+  if (frontage.corner && frontage.secondary_m != null) {
+    main += ` primary · ≈ ${frontage.secondary_m.toFixed(1)} m secondary (corner lot)`;
+  }
+  return `${main}<span class="src">${esc(frontage.method)} — approx; confirm exact frontage on the registered DP</span>`;
+}
+
+function renderSheet(site, env, dcp, frontage) {
   const L = [];
   // head
   const lotLine = site.lotidstring ? `Lot/DP ${esc(site.lotidstring)}` : "";
@@ -458,6 +578,8 @@ function renderSheet(site, env, dcp) {
   L.push(`<table>`);
   if (lotLine) L.push(`<tr><td class="k">Lot / DP</td><td class="v">${esc(site.lotidstring)}</td></tr>`);
   if (areaLine) L.push(`<tr><td class="k">Site area</td><td class="v">${areaLine}</td></tr>`);
+  const front = fmtFrontage(frontage);
+  if (front) L.push(`<tr><td class="k">Frontage (approx)</td><td class="v">${front}</td></tr>`);
   L.push(`</table>`);
 
   // envelope
@@ -525,8 +647,9 @@ const NSW_IMAGERY_TILES =
 let _sixMap = null;
 let _parcelLayer = null;
 let _markerLayer = null;
+let _frontageLayer = null;
 
-function renderMaps(site) {
+function renderMaps(site, frontage) {
   const card = document.getElementById("maps");
   card.style.display = "block";
   const { lat, lon, parcel } = site;
@@ -552,6 +675,7 @@ function renderMaps(site) {
   }
   if (_parcelLayer) { _sixMap.removeLayer(_parcelLayer); _parcelLayer = null; }
   if (_markerLayer) { _sixMap.removeLayer(_markerLayer); _markerLayer = null; }
+  if (_frontageLayer) { _sixMap.removeLayer(_frontageLayer); _frontageLayer = null; }
 
   // Container was display:none until now — Leaflet needs a size recalculation.
   setTimeout(() => {
@@ -560,6 +684,12 @@ function renderMaps(site) {
       // rings are [lon,lat]; Leaflet wants [lat,lon]. Array-of-rings handles holes.
       const latlngs = parcel.rings.map((ring) => ring.map((p) => [p[1], p[0]]));
       _parcelLayer = L.polygon(latlngs, { color: "#4ea1ff", weight: 2, fillOpacity: 0.12 }).addTo(_sixMap);
+      // Highlight the detected street frontage edge(s) in amber.
+      if (frontage && frontage.openSegments && frontage.openSegments.length) {
+        _frontageLayer = L.layerGroup(
+          frontage.openSegments.map((seg) => L.polyline(seg, { color: "#ffb000", weight: 5, opacity: 0.95 }))
+        ).addTo(_sixMap);
+      }
       _sixMap.fitBounds(_parcelLayer.getBounds(), { padding: [24, 24], maxZoom: 20 });
     } else {
       _markerLayer = L.marker([lat, lon]).addTo(_sixMap);
@@ -610,15 +740,16 @@ async function run() {
   try {
     const site = await resolveSite();
     status.textContent = "Reading planning layers…";
-    const env = await buildEnvelope(site);
+    // Envelope + frontage both read off the parcel — run them together.
+    const [env, frontage] = await Promise.all([buildEnvelope(site), estimateFrontage(site)]);
     let dcp = null;
     const dt = $("devType").value;
     if (dt) {
       try { dcp = controlsFor(dt, $("council").value); } catch (e) { /* dev-type not in DCP — skip section */ }
     }
-    sheet.innerHTML = renderSheet(site, env, dcp);
+    sheet.innerHTML = renderSheet(site, env, dcp, frontage);
     sheet.style.display = "block";
-    renderMaps(site);
+    renderMaps(site, frontage);
     status.textContent = "";
   } catch (exc) {
     sheet.innerHTML = `<div class="err">Error: ${esc(exc.message || exc)}</div>`;
