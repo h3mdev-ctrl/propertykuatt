@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>NSW Site Controls Calculator</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<style>
+  :root {
+    --bg: #0f1419;
+    --panel: #1a212b;
+    --panel-2: #222b36;
+    --line: #2c3744;
+    --text: #e6edf3;
+    --muted: #93a1b0;
+    --accent: #4ea1ff;
+    --accent-2: #2f6fb0;
+    --warn-bg: #3a2e16;
+    --warn-line: #6b5418;
+    --warn-text: #f0d68a;
+    --ok: #4cc38a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+  }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 28px 18px 64px; }
+  header h1 { font-size: 1.5rem; margin: 0 0 4px; }
+  header p { color: var(--muted); margin: 0 0 22px; font-size: 0.95rem; }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  .seg { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .seg button {
+    flex: 1 1 120px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    background: var(--panel-2);
+    color: var(--muted);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.92rem;
+    transition: 0.12s;
+  }
+  .seg button.active { border-color: var(--accent); color: var(--text); background: #1d2a3a; }
+  label { display: block; font-size: 0.85rem; color: var(--muted); margin: 0 0 5px; }
+  input, select {
+    width: 100%;
+    padding: 11px 12px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 1rem;
+  }
+  input:focus, select:focus { outline: none; border-color: var(--accent); }
+  .field { margin-bottom: 14px; }
+  .hint { font-size: 0.78rem; color: var(--muted); margin-top: 5px; }
+  .row { display: flex; gap: 12px; }
+  .row .field { flex: 1; }
+  .actions { display: flex; gap: 12px; align-items: center; margin-top: 4px; }
+  .btn-go {
+    background: var(--accent); color: #06121f; border: none; font-weight: 600;
+    padding: 12px 22px; border-radius: 8px; cursor: pointer; font-size: 1rem;
+  }
+  .btn-go:disabled { opacity: 0.55; cursor: default; }
+  .status { color: var(--muted); font-size: 0.9rem; }
+  /* sheet */
+  #sheet { display: none; }
+  .sheet-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; border-bottom: 1px solid var(--line); padding-bottom: 12px; margin-bottom: 14px; }
+  .sheet-head h2 { margin: 0; font-size: 1.15rem; }
+  .meta { color: var(--muted); font-size: 0.85rem; }
+  .sec-title { font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); margin: 20px 0 10px; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 8px 6px; vertical-align: top; border-bottom: 1px solid var(--line); font-size: 0.93rem; }
+  td.k { color: var(--muted); width: 38%; }
+  td.v { color: var(--text); }
+  .src { color: var(--muted); font-size: 0.78rem; display: block; margin-top: 2px; }
+  .split { color: var(--warn-text); font-size: 0.8rem; }
+  .derived td.v { color: var(--ok); }
+  .warn { background: var(--warn-bg); border: 1px solid var(--warn-line); color: var(--warn-text); border-radius: 8px; padding: 12px 14px; margin: 12px 0; font-size: 0.88rem; }
+  .err { background: #3a1c1c; border: 1px solid #6b2c2c; color: #ffb3b3; border-radius: 8px; padding: 12px 14px; margin: 12px 0; font-size: 0.9rem; }
+  .clause { color: var(--muted); font-size: 0.78rem; }
+  .disclaimer { margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.8rem; }
+  /* maps */
+  .maps-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  @media (max-width: 720px) { .maps-grid { grid-template-columns: 1fr; } }
+  .map-label { font-size: 0.8rem; color: var(--muted); margin: 0 0 6px; display: flex; justify-content: space-between; align-items: baseline; }
+  .map-label a { font-size: 0.78rem; }
+  .map-box { width: 100%; height: 280px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-2); }
+  iframe.map-box { display: block; }
+  .leaflet-container { background: var(--panel-2); border-radius: 8px; }
+  footer { text-align: center; color: var(--muted); font-size: 0.78rem; margin-top: 28px; }
+  footer a { color: var(--accent); }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>NSW Site Controls Calculator</h1>
+    <p>Enter a NSW property and get its live planning envelope — zone, FSR, height,
+       minimum lot size, heritage, derived max GFA, plus City of Ryde DCP setbacks.
+       Reads public NSW government data directly in your browser. No account, no install.</p>
+  </header>
+
+  <div class="card">
+    <div class="seg" id="modeSeg">
+      <button data-mode="lot" class="active">Lot / DP</button>
+      <button data-mode="coords">Coordinates</button>
+      <button data-mode="address">Address</button>
+    </div>
+
+    <div id="in-lot" class="field">
+      <label>Lot / Plan reference</label>
+      <input id="lot" placeholder="e.g. 3/DP24994" autocomplete="off" />
+      <div class="hint">Most reliable input. Read it off the free NSW map at
+        <a href="https://maps.six.nsw.gov.au" target="_blank" rel="noopener">maps.six.nsw.gov.au</a>.</div>
+    </div>
+
+    <div id="in-coords" class="field" style="display:none">
+      <div class="row">
+        <div class="field"><label>Longitude</label><input id="lon" placeholder="151.0931" autocomplete="off" /></div>
+        <div class="field"><label>Latitude</label><input id="lat" placeholder="-33.8076" autocomplete="off" /></div>
+      </div>
+      <div class="hint">WGS84 decimal degrees (right-click a point in SixMaps to read them).</div>
+    </div>
+
+    <div id="in-address" class="field" style="display:none">
+      <label>Street address</label>
+      <input id="address" placeholder="street, suburb, NSW" autocomplete="off" />
+      <div class="hint">Geocoded approximately via OpenStreetMap — always sanity-check the lot it finds.</div>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label>Council (DCP detail)</label>
+        <select id="council"></select>
+        <div class="hint">Detailed setback / parking rules. More councils planned.</div>
+      </div>
+      <div class="field">
+        <label>Development type</label>
+        <select id="devType"></select>
+        <div class="hint">Enables the council DCP section.</div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button id="go" class="btn-go">Calculate</button>
+      <span id="status" class="status"></span>
+    </div>
+  </div>
+
+  <div class="card" id="sheet"></div>
+
+  <div class="card" id="maps" style="display:none">
+    <div class="maps-grid">
+      <div class="map-panel">
+        <div class="map-label">NSW aerial + cadastre <a id="six-link" href="#" target="_blank" rel="noopener">SIX Maps ↗</a></div>
+        <div id="sixmap" class="map-box"></div>
+      </div>
+      <div class="map-panel">
+        <div class="map-label">Google satellite <a id="g-link" href="#" target="_blank" rel="noopener">Open ↗</a></div>
+        <iframe id="gmap" class="map-box" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+      </div>
+      <div class="map-panel">
+        <div class="map-label">Street View <a id="sv-link" href="#" target="_blank" rel="noopener">Open ↗</a></div>
+        <iframe id="svmap" class="map-box" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    Decision-support only — not planning advice. Data: NSW Planning EPI layers,
+    SIX cadastre, City of Ryde DCP 2014. Source:
+    <a href="https://github.com/h3mdev-ctrl/propertykuatt" target="_blank" rel="noopener">propertykuatt</a>.
+  </footer>
+</div>
+
+<script type="module" src="./app.js"></script>
+</body>
+</html>
