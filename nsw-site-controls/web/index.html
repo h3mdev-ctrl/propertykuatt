@@ -89,6 +89,9 @@
   .src { color: var(--muted); font-size: 0.78rem; display: block; margin-top: 2px; }
   .split { color: var(--warn-text); font-size: 0.8rem; }
   .derived td.v { color: var(--ok); }
+  .elig-pass td.k { color: var(--ok); }
+  .elig-fail td.k, .elig-fail td.v { color: #ff9b9b; }
+  .elig-ok { color: var(--ok); font-size: 0.85rem; margin-top: 8px; }
   .warn { background: var(--warn-bg); border: 1px solid var(--warn-line); color: var(--warn-text); border-radius: 8px; padding: 12px 14px; margin: 12px 0; font-size: 0.88rem; }
   .err { background: #3a1c1c; border: 1px solid #6b2c2c; color: #ffb3b3; border-radius: 8px; padding: 12px 14px; margin: 12px 0; font-size: 0.9rem; }
   .clause { color: var(--muted); font-size: 0.78rem; }
@@ -188,6 +191,6 @@
   </footer>
 </div>
 
-<script type="module" src="./app.js"></script>
+<script type="module" src="./app.js?v=6"></script>
 </body>
 </html>

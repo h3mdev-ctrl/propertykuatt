@@ -234,7 +234,7 @@ async function fromAddress(address) {
 function distinct(values) {
   const seen = new Set(); const out = [];
   for (const v of values) {
-    const key = `${v.value} ${v.epi}`;
+    const key = `${v.value}|${v.epi}`;
     if (!seen.has(key)) { seen.add(key); out.push(v); }
   }
   return out;
@@ -403,7 +403,7 @@ async function estimateFrontage(site) {
     out.corner = realRuns.length >= 2;
     if (out.corner) out.secondary_m = runLen(realRuns[1]);
     out.openSegments = runs.flat().map((e) => [[e.p1[1], e.p1[0]], [e.p2[1], e.p2[0]]]);
-    out.method = "measured street-facing boundary (cadastre)";
+    out.method = "measured along the SIX Maps cadastral boundary (blue line)";
   } else if (testable.length) {
     out.bbox = orientedBBox(pts, mx, my);
     out.primary_m = out.bbox.minSide;
@@ -460,6 +460,17 @@ const COUNCILS = {
     },
     "dual-occupancy": {
       label: "Dual occupancy (attached)",
+      // Headline permissibility minimums — checked against the site's measured
+      // area + frontage. Width-at-depth is listed but flagged manual (needs the
+      // exact plan). battleaxe values noted; battle-axe lots aren't auto-detected.
+      eligibility: {
+        min_area_m2: 580,
+        min_frontage_m: 10,
+        min_width_m: 15,
+        width_at_m: 7.5,
+        battleaxe: { min_area_m2: 740, min_frontage_m: 3 },
+        source: "Ryde LEP 2014 cl 4.1B + DCP 2014 Part 3.3",
+      },
       controls: [
         { control: "Minimum lot", value: "≥ 580 m², road frontage ≥ 10 m, width ≥ 15 m at 7.5 m from the frontage. Battle-axe: ≥ 740 m² (excl. access corridor), frontage ≥ 3 m, corridor ≥ 3 m wide.", clause: "Part 3.3 General / Ryde LEP 2014 cl 4.1B" },
         { control: "Max height / storeys", value: "Max 2 storeys. A duplex is a single building, ≤ 2 storeys, containing 2 dwellings (9.5 m height as per dwelling house).", clause: "2.8.1" },
@@ -518,6 +529,56 @@ function controlsFor(devType, councilSlug = DEFAULT_COUNCIL) {
   };
 }
 
+// Evaluate a dev-type's headline minimums against the measured site metrics.
+// Returns null when the dev-type has no defined eligibility (e.g. dwelling house).
+function checkEligibility(site, frontage, councilSlug, devTypeCanonical) {
+  const c = COUNCILS[councilSlug];
+  const block = c && c.dev_types[devTypeCanonical];
+  const e = block && block.eligibility;
+  if (!e) return null;
+
+  const criteria = [];
+  // Site area
+  if (e.min_area_m2 != null) {
+    if (site.area_m2 == null) {
+      criteria.push({ label: "Site area", required: `≥ ${e.min_area_m2} m²`, actual: "unknown", pass: null });
+    } else {
+      criteria.push({
+        label: "Site area", required: `≥ ${e.min_area_m2} m²`,
+        actual: `${site.area_m2.toFixed(0)} m²`, pass: site.area_m2 >= e.min_area_m2,
+      });
+    }
+  }
+  // Road frontage
+  if (e.min_frontage_m != null) {
+    const fm = frontage && frontage.primary_m;
+    if (fm == null) {
+      criteria.push({ label: "Road frontage", required: `≥ ${e.min_frontage_m} m`, actual: "unknown", pass: null });
+    } else {
+      const approx = !frontage.method || !frontage.method.startsWith("measured");
+      criteria.push({
+        label: "Road frontage", required: `≥ ${e.min_frontage_m} m`,
+        actual: `≈ ${fm.toFixed(1)} m${approx ? " (rough)" : ""}`, pass: fm >= e.min_frontage_m,
+      });
+    }
+  }
+  // Width at depth — not auto-measured (needs the exact plan geometry)
+  if (e.min_width_m != null) {
+    criteria.push({
+      label: `Width at ${e.width_at_m} m from frontage`,
+      required: `≥ ${e.min_width_m} m`, actual: "verify on plan", pass: null,
+    });
+  }
+
+  const anyFail = criteria.some((x) => x.pass === false);
+  const anyUnknown = criteria.some((x) => x.pass === null);
+  let battleaxe_note = null;
+  if (e.battleaxe) {
+    battleaxe_note = `Battle-axe / flag lots have different minimums (≥ ${e.battleaxe.min_area_m2} m² excl. access corridor, frontage ≥ ${e.battleaxe.min_frontage_m} m) — not auto-detected here.`;
+  }
+  return { dev_label: block.label, criteria, anyFail, anyUnknown, source: e.source, battleaxe_note };
+}
+
 // ----------------------------------------------------------------------------
 // sheet.py (rendered as HTML)
 // ----------------------------------------------------------------------------
@@ -562,7 +623,7 @@ function fmtFrontage(frontage) {
   return `${main}<span class="src">${esc(frontage.method)} — approx; confirm exact frontage on the registered DP</span>`;
 }
 
-function renderSheet(site, env, dcp, frontage) {
+function renderSheet(site, env, dcp, frontage, elig) {
   const L = [];
   // head
   const lotLine = site.lotidstring ? `Lot/DP ${esc(site.lotidstring)}` : "";
@@ -617,6 +678,26 @@ function renderSheet(site, env, dcp, frontage) {
   if (env.subdivision) L.push(`<tr class="derived"><td class="k">Subdivision</td><td class="v">${esc(env.subdivision)}</td></tr>`);
   L.push(`</table>`);
   for (const n of env.notes) L.push(`<div class="src" style="margin-top:8px">• ${esc(n)}</div>`);
+
+  // eligibility — sits right under the envelope / minimum-lot info
+  if (elig) {
+    L.push(`<div class="sec-title">Eligibility check — ${esc(elig.dev_label)}</div>`);
+    L.push(`<table>`);
+    for (const cr of elig.criteria) {
+      const icon = cr.pass === true ? "✓" : cr.pass === false ? "✗" : "•";
+      const cls = cr.pass === false ? ' class="elig-fail"' : cr.pass === true ? ' class="elig-pass"' : "";
+      L.push(`<tr${cls}><td class="k">${icon} ${esc(cr.label)}</td><td class="v">${esc(cr.actual)} <span class="src">(${esc(cr.required)})</span></td></tr>`);
+    }
+    L.push(`</table>`);
+    if (elig.anyFail) {
+      L.push(`<div class="warn">⚠ This site appears NOT to meet the ${esc(elig.dev_label)} minimums in ${esc(dcp.council)} (see ✗ above). Confirm against the DCP / a planner before relying on it.</div>`);
+    } else {
+      const tail = elig.anyUnknown ? " (items marked • not auto-checked — verify those + all DCP controls)" : " — still verify all DCP controls";
+      L.push(`<div class="elig-ok">✓ Meets the auto-checked ${esc(elig.dev_label)} minimums${tail}.</div>`);
+    }
+    if (elig.battleaxe_note) L.push(`<div class="src" style="margin-top:4px">${esc(elig.battleaxe_note)}</div>`);
+    L.push(`<div class="src">Source: ${esc(elig.source)}</div>`);
+  }
 
   // dcp
   if (dcp) {
@@ -742,12 +823,17 @@ async function run() {
     status.textContent = "Reading planning layers…";
     // Envelope + frontage both read off the parcel — run them together.
     const [env, frontage] = await Promise.all([buildEnvelope(site), estimateFrontage(site)]);
-    let dcp = null;
+    let dcp = null, elig = null;
     const dt = $("devType").value;
     if (dt) {
-      try { dcp = controlsFor(dt, $("council").value); } catch (e) { /* dev-type not in DCP — skip section */ }
+      try { dcp = controlsFor(dt, $("council").value); }
+      catch (e) { /* dev-type not in this council's DCP — skip section */ }
+      if (dcp) {
+        try { elig = checkEligibility(site, frontage, $("council").value, dcp.dev_type); }
+        catch (e) { console.error("eligibility check failed:", e); }
+      }
     }
-    sheet.innerHTML = renderSheet(site, env, dcp, frontage);
+    sheet.innerHTML = renderSheet(site, env, dcp, frontage, elig);
     sheet.style.display = "block";
     renderMaps(site, frontage);
     status.textContent = "";
