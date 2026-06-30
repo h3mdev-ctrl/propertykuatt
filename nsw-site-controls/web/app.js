@@ -482,6 +482,46 @@ const COUNCILS = {
   },
   }, // end ryde
 
+  kuringai: {
+    name: "Ku-ring-gai Council",
+    instrument: "Ku-ring-gai DCP — Section A Part 4 (Dwelling Houses), consolidation 19-03-2024",
+    source_part: "Part 4 — Dwelling Houses (4A Site Design, 4B Access & Parking, 4C Building Design)",
+    source_url: "https://www.krg.nsw.gov.au/Planning-and-development/Planning-controls/Ku-ring-gai-Development-Control-Plan",
+    retrieved: "2026-06-30",
+    dev_types: {
+      "dwelling-house": {
+        label: "Dwelling house",
+        controls: [
+          { control: "Front setback", value: "Single storey: min 9 m (low side of street) / 12 m (high side). Two storey: low side min 9 m & average 11 m; high side min 12 m & average 14 m. ≥75% of the front elevation must meet the average setback; ≤25% may sit at the minimum.", clause: "4A.2 (control 3, Fig 4A.2-1)" },
+          { control: "Side setback", value: "Single storey: 1.5 m. Two storey: 2 m (sites up to 20 m wide), increasing progressively on wider sites. Must fit a path plus ≥0.6 m landscaping (single storey) / 1.1 m (two storey).", clause: "4A.2 (controls 11–13, Figs 4A.2-2/3)" },
+          { control: "Rear setback", value: "Sites deeper than 48 m: min 12 m. Sites 48 m deep or less: min 25% of the average site depth.", clause: "4A.2 (controls 9–10)" },
+          { control: "Max height / storeys", value: "Maximum 2 storeys. Overall height (HOB) per Ku-ring-gai LEP 2015 — see 'Max building height' in the envelope above (commonly 9.5 m in R2).", clause: "4A.1 / KLEP 2015" },
+          { control: "Built-upon area (BUA)", value: "Capped on a sliding scale that tightens as the lot grows (e.g. a 1,100 m² lot ≈ 508 m², ~46%). Read the 4A.3 tables/formula for the exact cap for the site's size band.", clause: "4A.3" },
+          { control: "Landscaping / canopy trees", value: "Retain existing trees; provide a minimum number of canopy trees (capable of 13 m on shale/transitional soils, 10 m on sandstone) by lot size — <850 m²: 3; 850–1,000 m²: 5; 1,001–1,500 m²: 7; >1,500 m²: 10 or as directed.", clause: "4A.4 (control 2)" },
+          { control: "Private open space", value: "At least one useable area, minimum depth 5 m and minimum area 50 m² (depth may be reduced on steep sites).", clause: "4C.4 (control 1)" },
+          { control: "Car parking", value: "2 on-site spaces per single dwelling (rates per Section C Part 22R; see Section A 4B.3).", clause: "4B.2 / 4B.3" },
+          { control: "Site constraints (check first)", value: "Ku-ring-gai has extensive Heritage Conservation Areas, biodiversity / tree-canopy and bushfire-prone land controls that frequently override or add to these numbers. Check the LEP heritage/biodiversity + bushfire mapping for the site.", clause: "KLEP 2015 / DCP Parts 13 & 18" },
+        ],
+      },
+      "dual-occupancy": {
+        label: "Dual occupancy",
+        // Permissibility is location-dependent and unsettled — see `note`.
+        eligibility: {
+          min_area_m2: 450,
+          min_frontage_m: 12,
+          source: "NSW Housing SEPP Low & Mid-Rise reforms (the standard operative in Ku-ring-gai LMR areas)",
+          note: "Ku-ring-gai dual-occupancy minimums depend on WHERE the site is. In Low & Mid-Rise (LMR) areas — within ~800 m of the Roseville, Lindfield, Gordon, Pymble, St Ives, Turramurra or Wahroonga centres — the NSW reform standard applies (min lot 450 m², frontage 12 m), checked above. OUTSIDE those areas, Ku-ring-gai's proposed higher minimum (1,015 m², 18 m frontage) was not yet gazetted as of mid-2026. Whether a site is in an LMR area is NOT auto-detected here — confirm against the LMR mapping and current Council controls.",
+        },
+        controls: [
+          { control: "Setbacks", value: "As per the dwelling-house controls above (front 9/12 m by storey & side of street; side 1.5/2 m; rear 12 m or 25% of depth). On a corner allotment the dwelling furthest from the primary street has a min building line of 7 m for 75% of the frontage and 5 m for ≤25%.", clause: "4A.2 (incl. control 7)" },
+          { control: "Built-upon area / landscaping", value: "Same 4A.3 BUA scale and 4A.4 canopy-tree requirements as a dwelling house apply across the allotment.", clause: "4A.3 / 4A.4" },
+          { control: "Car parking", value: "Provided per Section C Part 22R parking rates for each dwelling.", clause: "4B.2 / Part 22R" },
+          { control: "Lot requirements", value: "See the eligibility check above — 450 m² / 12 m frontage in LMR areas; Ku-ring-gai's proposed 1,015 m² / 18 m (outside LMR) not yet gazetted as of 2026.", clause: "Housing SEPP LMR / KLEP 2015" },
+        ],
+      },
+    },
+  }, // end kuringai
+
   // --- Skeleton for the NEXT council (uncomment + fill, no other changes) -----
   // Copy this block, key it by the council slug, transcribe the DCP numbers with
   // their clause cites, and it appears in the Council dropdown automatically.
@@ -576,7 +616,8 @@ function checkEligibility(site, frontage, councilSlug, devTypeCanonical) {
   if (e.battleaxe) {
     battleaxe_note = `Battle-axe / flag lots have different minimums (≥ ${e.battleaxe.min_area_m2} m² excl. access corridor, frontage ≥ ${e.battleaxe.min_frontage_m} m) — not auto-detected here.`;
   }
-  return { dev_label: block.label, criteria, anyFail, anyUnknown, source: e.source, battleaxe_note };
+  return { dev_label: block.label, criteria, anyFail, anyUnknown, source: e.source,
+           battleaxe_note, note: e.note || null };
 }
 
 // ----------------------------------------------------------------------------
@@ -695,6 +736,7 @@ function renderSheet(site, env, dcp, frontage, elig) {
       const tail = elig.anyUnknown ? " (items marked • not auto-checked — verify those + all DCP controls)" : " — still verify all DCP controls";
       L.push(`<div class="elig-ok">✓ Meets the auto-checked ${esc(elig.dev_label)} minimums${tail}.</div>`);
     }
+    if (elig.note) L.push(`<div class="warn" style="margin-top:8px">${esc(elig.note)}</div>`);
     if (elig.battleaxe_note) L.push(`<div class="src" style="margin-top:4px">${esc(elig.battleaxe_note)}</div>`);
     L.push(`<div class="src">Source: ${esc(elig.source)}</div>`);
   }
